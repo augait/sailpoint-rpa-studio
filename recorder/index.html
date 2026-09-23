@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+
+    <title>SailPoint RPA Studio · Recorder</title>
+
+    <link
+      rel="stylesheet"
+      href="/style.css"
+    />
+
+    <script
+      src="/panel.js"
+      defer
+    ></script>
+  </head>
+
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">
+            S
+          </div>
+
+          <div class="brand-copy">
+            <h1>
+              SailPoint RPA Studio
+            </h1>
+
+            <p>
+              Local Recorder Agent
+            </p>
+          </div>
+        </div>
+
+        <div class="version">
+          <span class="version-dot"></span>
+          RECORDER v0.3
+        </div>
+      </header>
+
+      <section class="grid">
+        <article class="card control-card">
+          <div class="card-header">
+            <div>
+              <p class="eyebrow">
+                WEB AUTOMATION
+              </p>
+
+              <h2>
+                Nova gravação
+              </h2>
+
+              <p class="description">
+                Grave ações realizadas em uma aplicação
+                web e transforme o processo em etapas
+                reutilizáveis no RPA Studio.
+              </p>
+            </div>
+
+            <div
+              id="status-pill"
+              class="status-pill"
+            >
+              <span class="status-dot"></span>
+
+              <span id="status-label">
+                PRONTO
+              </span>
+            </div>
+          </div>
+
+          <form id="start">
+            <label class="field">
+              <span class="field-label">
+                URL da aplicação
+              </span>
+
+              <span class="url-wrap">
+                <span class="url-icon">
+                  ◉
+                </span>
+
+                <input
+                  id="url"
+                  type="url"
+                  required
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="http://localhost:8081"
+                />
+              </span>
+            </label>
+
+            <div class="actions">
+              <button
+                id="start-button"
+                type="submit"
+                class="btn btn-primary"
+              >
+                <span>●</span>
+                Iniciar gravação
+              </button>
+
+              <button
+                id="stop"
+                type="button"
+                class="btn btn-danger"
+                disabled
+              >
+                <span>■</span>
+                Parar
+              </button>
+            </div>
+
+            <div class="secondary-actions">
+              <button
+                id="clear"
+                type="button"
+                class="btn"
+              >
+                Limpar gravação
+              </button>
+
+              <a
+                id="export"
+                class="btn btn-export"
+                href="/export"
+              >
+                Exportar JSON
+              </a>
+            </div>
+          </form>
+
+          <div class="metrics">
+            <div class="metric">
+              <span class="metric-label">
+                Etapas
+              </span>
+
+              <span
+                id="metric-steps"
+                class="metric-value"
+              >
+                0
+              </span>
+            </div>
+
+            <div class="metric">
+              <span class="metric-label">
+                Estado
+              </span>
+
+              <span
+                id="metric-state"
+                class="metric-value"
+              >
+                Pronto
+              </span>
+            </div>
+
+            <div class="metric">
+              <span class="metric-label">
+                Aplicação
+              </span>
+
+              <span
+                id="metric-target"
+                class="metric-value small"
+                title="Nenhuma"
+              >
+                —
+              </span>
+            </div>
+          </div>
+
+          <p
+            id="status"
+            class="message"
+            role="status"
+          >
+            Pronto para iniciar uma gravação.
+          </p>
+
+          <div class="notice">
+            <span>◆</span>
+
+            <span>
+              Os valores digitados não são armazenados pelo
+              Recorder. Campos de formulário são convertidos
+              em variáveis como
+              <strong>{{username}}</strong>.
+            </span>
+          </div>
+        </article>
+
+        <article class="card timeline-card">
+          <header class="timeline-header">
+            <div>
+              <p class="eyebrow">
+                CAPTURED EVENTS
+              </p>
+
+              <h2>
+                Timeline
+              </h2>
+            </div>
+
+            <span
+              id="timeline-count"
+              class="counter"
+            >
+              0
+            </span>
+          </header>
+
+          <div
+            id="timeline-body"
+            class="timeline-body"
+          >
+            <div
+              id="empty"
+              class="empty"
+            >
+              <div>
+                <div class="empty-icon">
+                  ◎
+                </div>
+
+                <h3>
+                  Nenhuma ação gravada
+                </h3>
+
+                <p>
+                  Inicie uma gravação e execute o processo
+                  normalmente no navegador aberto.
+                </p>
+              </div>
+            </div>
+
+            <ol
+              id="timeline"
+              class="timeline"
+              hidden
+            ></ol>
+          </div>
+        </article>
+      </section>
+
+      <footer class="footer">
+        Recorder executado localmente em
+        127.0.0.1 · Ambiente de laboratório
+      </footer>
+    </main>
+  </body>
+</html>

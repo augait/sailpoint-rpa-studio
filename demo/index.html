@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Legacy IAM Portal · Demo</title>
+    <script src="/demo.js" defer></script>
+  </head>
+  <body>
+    <h1>Legacy IAM Portal</h1>
+    <p>Fictional application for integration testing</p>
+    <form id="login-form">
+      <h2>Sign in</h2>
+      <label
+        >Admin username
+        <input id="login-username" name="admin_username" required /></label
+      ><label
+        >Password
+        <input
+          id="login-password"
+          name="admin_password"
+          type="password"
+          required /></label
+      ><button id="login" type="submit">Login</button>
+    </form>
+    <section id="portal" hidden>
+      <button id="users">Users</button>
+      <section id="user-section" hidden>
+        <h2>Users</h2>
+        <button id="new-user">New User</button>
+        <form id="user-form" hidden>
+          <p>
+            <label
+              >Username <input id="username" name="username" required
+            /></label>
+          </p>
+          <p>
+            <label
+              >First name <input id="firstname" name="firstname" required
+            /></label>
+          </p>
+          <p>
+            <label
+              >Last name <input id="lastname" name="lastname" required
+            /></label>
+          </p>
+          <p>
+            <label
+              >Email <input id="email" name="email" type="email" required
+            /></label>
+          </p>
+          <p>
+            <label
+              >Department
+              <select id="department" name="department">
+                <option value="IT">IT</option>
+                <option value="HR">HR</option>
+                <option value="FINANCE">Finance</option>
+              </select></label
+            >
+          </p>
+          <button id="save" type="submit">Save</button>
+        </form>
+        <p id="result" role="status"></p>
+        <p id="account-id"></p>
+        <table>
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Department</th>
+            </tr>
+          </thead>
+          <tbody id="accounts"></tbody>
+        </table>
+      </section>
+    </section>
+    <p id="error"></p>
+  </body>
+</html>

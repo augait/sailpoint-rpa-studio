@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SailPoint RPA Studio</title>
+    <link rel="stylesheet" href="/static/studio.css" />
+    <script type="module" src="/static/studio.js"></script>
+  </head>
+  <body>
+    <section id="login-screen" class="login-screen">
+      <form id="login-form" class="login-card">
+        <div class="brand-icon">S</div>
+        <p class="eyebrow">IDENTITY AUTOMATION</p>
+        <h1>SailPoint<br />RPA Studio<span class="dot">.</span></h1>
+        <p class="muted">Seu ponto de controle para automações web e IAM.</p>
+        <label
+          >Usuário<input
+            name="username"
+            autocomplete="username"
+            required /></label
+        ><label
+          >Senha<input
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required /></label
+        ><button class="primary" type="submit">Entrar no Studio →</button>
+        <p id="login-error" role="alert"></p>
+        <small>v0.1 · Fase 1 • Ambiente autenticado</small>
+      </form>
+      <div class="login-art">
+        <p>DA INTERFACE LEGADA<br />AO FLUXO AUTOMATIZADO.</p>
+        <div class="orb"></div>
+        <span>Defina. Execute. Acompanhe.</span>
+      </div>
+    </section>
+    <div id="studio" hidden>
+      <aside>
+        <a class="brand" href="#dashboard"
+          ><span class="brand-icon">S</span
+          ><span>SailPoint<small>RPA STUDIO</small></span></a
+        >
+        <div class="workspace">
+          <span class="live-dot"></span> Workspace IAM <small>FASE 1</small>
+        </div>
+        <p class="nav-label">ORQUESTRAÇÃO</p>
+        <nav id="navigation">
+          <button data-view="dashboard">◫ <span>Dashboard</span></button
+          ><button data-view="applications">▦ <span>Aplicações</span></button
+          ><button data-view="workflows">◇ <span>Workflows</span></button
+          ><button data-view="executions">▷ <span>Execuções</span></button
+          ><button data-view="queue">≡ <span>Fila</span></button
+          ><button data-view="workers">⌘ <span>Workers</span></button>
+          <p class="nav-label">GOVERNANÇA</p>
+          <button data-view="audit">◷ <span>Auditoria</span></button
+          ><button data-view="settings">⚙ <span>Configuração</span></button>
+        </nav>
+        <div class="sidebar-bottom">
+          <span class="avatar">IA</span>
+          <div id="user-label"></div>
+          <button id="logout" title="Sair">↗</button>
+        </div>
+      </aside>
+      <main>
+        <header>
+          <div>
+            <span class="muted">Workspace</span> <span class="slash">/</span>
+            <span id="breadcrumb">Visão geral</span>
+          </div>
+          <div class="header-right">
+            <a href="/docs" target="_blank">API Docs ↗</a
+            ><span class="pill">MVP · v0.1</span>
+          </div>
+        </header>
+        <div id="view"></div>
+      </main>
+    </div>
+    <div id="toast" role="status" hidden></div>
+    <dialog id="modal">
+      <div id="modal-content"></div>
+      <button id="close-modal" class="dialog-close" aria-label="Fechar">
+        ×
+      </button>
+    </dialog>
+  </body>
+</html>

@@ -1,0 +1,39 @@
+# Secrets / local configuration
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Runtime
+artifacts/
+*.db
+*.sqlite
+*.sqlite3
+
+# Recorder exports
+recording.json
+recording*.json
+
+# Backups / archives
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+*.original

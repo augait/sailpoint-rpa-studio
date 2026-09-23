@@ -1,0 +1,166 @@
+{
+  "name": "CREATE_ACCOUNT · Legacy IAM Portal",
+  "operation": "CREATE_ACCOUNT",
+  "steps": [
+    {
+      "id": "step-open-portal",
+      "type": "navigate",
+      "name": "Open portal",
+      "selectors": [],
+      "url": "{{application.url}}"
+    },
+    {
+      "id": "step-admin-username",
+      "type": "fill",
+      "name": "Admin username",
+      "selectors": [
+        {
+          "kind": "css",
+          "value": "#login-username"
+        }
+      ],
+      "value": "{{admin_username}}"
+    },
+    {
+      "id": "step-admin-password",
+      "type": "fill",
+      "name": "Admin password",
+      "selectors": [
+        {
+          "kind": "css",
+          "value": "#login-password"
+        }
+      ],
+      "value": "{{admin_password}}",
+      "secret": true
+    },
+    {
+      "id": "step-login",
+      "type": "click",
+      "name": "Login",
+      "selectors": [
+        {
+          "kind": "css",
+          "value": "#login"
+        }
+      ]
+    },
+    {
+      "id": "step-users",
+      "type": "click",
+      "name": "Users",
+      "selectors": [
+        {
+          "kind": "css",
+          "value": "#users"
+        }
+      ]
+    },
+    {
+      "id": "step-new-user",
+      "type": "click",
+      "name": "New user",
+      "selectors": [
+        {
+          "kind": "css",
+          "value": "#new-user"
+        }
+      ]
+    },
+    {
+      "id": "step-username",
+      "type": "fill",
+      "name": "Username",
+      "selectors": [
+        {
+          "kind": "css",
+          "value": "#username"
+        }
+      ],
+      "value": "{{username}}"
+    },
+    {
+      "id": "step-first-name",
+      "type": "fill",
+      "name": "First name",
+      "selectors": [
+        {
+          "kind": "css",
+          "value": "#firstname"
+        }
+      ],
+      "value": "{{firstname}}"
+    },
+    {
+      "id": "step-last-name",
+      "type": "fill",
+      "name": "Last name",
+      "selectors": [
+        {
+          "kind": "css",
+          "value": "#lastname"
+        }
+      ],
+      "value": "{{lastname}}"
+    },
+    {
+      "id": "step-email",
+      "type": "fill",
+      "name": "Email",
+      "selectors": [
+        {
+          "kind": "css",
+          "value": "#email"
+        }
+      ],
+      "value": "{{email}}"
+    },
+    {
+      "id": "step-department",
+      "type": "select",
+      "name": "Department",
+      "selectors": [
+        {
+          "kind": "css",
+          "value": "#department"
+        }
+      ],
+      "value": "{{department}}"
+    },
+    {
+      "id": "step-save",
+      "type": "click",
+      "name": "Save",
+      "selectors": [
+        {
+          "kind": "css",
+          "value": "#save"
+        }
+      ]
+    },
+    {
+      "id": "step-validate-success",
+      "type": "assert_text",
+      "name": "Validate success",
+      "selectors": [
+        {
+          "kind": "css",
+          "value": "#result"
+        }
+      ],
+      "value": "User created successfully"
+    },
+    {
+      "id": "step-return-account",
+      "type": "extract_text",
+      "name": "Return account",
+      "selectors": [
+        {
+          "kind": "css",
+          "value": "#account-id"
+        }
+      ],
+      "output": "accountId"
+    }
+  ]
+}
