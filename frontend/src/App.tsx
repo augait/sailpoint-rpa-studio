@@ -23,6 +23,8 @@ import {
 
 import '@xyflow/react/dist/style.css'
 import './App.css'
+import { Login } from './Login'
+import type { AuthSession } from './api'
 
 
 type StudioNodeKind =
@@ -897,6 +899,13 @@ function branchAllowed(
 
 function App() {
   const [
+    session,
+    setSession,
+  ] = useState<AuthSession | null>(
+    null,
+  )
+
+  const [
     nodes,
     setNodes,
     onNodesChange,
@@ -1106,6 +1115,14 @@ function App() {
   )
 
 
+  if (!session) {
+    return (
+      <Login
+        onAuthenticated={setSession}
+      />
+    )
+  }
+
   return (
     <div className="studio-shell">
       <header className="topbar">
@@ -1120,6 +1137,10 @@ function App() {
 
           <p>
             React Flow · Phase 2
+            {' · '}
+            {session.username}
+            {' · '}
+            {session.role}
           </p>
         </div>
 
