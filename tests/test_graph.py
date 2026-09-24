@@ -134,6 +134,7 @@ def test_explicit_loop_cycle_is_valid():
             GraphNode(
                 id="loop1",
                 kind="loop",
+                expression="{{continue_loop}} == true",
                 max_iterations=5,
             ),
             GraphNode(
@@ -233,4 +234,17 @@ def test_condition_requires_true_and_false():
                     target="__end__",
                 ),
             ],
+        )
+
+
+
+def test_loop_requires_expression():
+    with pytest.raises(
+        ValueError,
+        match="LOOP precisa de expression",
+    ):
+        GraphNode(
+            id="loop1",
+            kind="loop",
+            max_iterations=5,
         )

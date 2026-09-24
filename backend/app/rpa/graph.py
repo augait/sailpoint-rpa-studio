@@ -87,6 +87,11 @@ class GraphNode(StrictModel):
                 )
 
         elif self.kind == "loop":
+            if not self.expression.strip():
+                raise ValueError(
+                    "Nó LOOP precisa de expression"
+                )
+
             if self.max_iterations is None:
                 raise ValueError(
                     "Nó LOOP precisa de max_iterations"
