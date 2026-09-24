@@ -133,3 +133,125 @@ def test_validation_does_not_echo_secrets(client, users):
     response = client.post("/api/v1/workflows", json=body, headers=users["ADMIN"])
     assert response.status_code == 422
     assert "never-echo-this" not in response.text
+
+
+def test_workflow_version_lifecycle(client, users):
+    workflow = create_workflow(
+        client,
+        users["ADMIN"],
+    )
+
+    workflow_id = workflow["id"]
+
+    versions = client.get(
+        f"/api/v1/workflows/{workflow_id}/versions",
+        headers=users["ADMIN"],
+    )
+
+    assert versions.status_code == 200
+
+    data = versions.json()
+
+    assert len(data) == 1
+    assert data[0]["version"] == 1
+    assert data[0]["status"] == "DRAFT"
+
+    #
+    # Editar um draft não cria versão nova.
+    #
+    body = {
+        "name": "Example edited",
+        "application_id": workflow["application_id"],
+        "operation": workflow["operation"],
+        "timeout_seconds": workflow["timeout_seconds"],
+        "steps": workflow["steps"],
+        "revision": workflow["revision"],
+    }
+
+    response = client.put(
+        f"/api/v1/workflows/{workflow_id}",
+        headers=users["ADMIN"],
+        json=body,
+    )
+
+    assert response.status_code == 200, response.text
+
+    edited = response.json()
+
+    versions = client.get(
+        f"/api/v1/workflows/{workflow_id}/versions",
+        headers=users["ADMIN"],
+    ).json()
+
+    assert len(versions) == 1
+    assert versions[0]["version"] == 1
+    assert versions[0]["status"] == "DRAFT"
+    assert versions[0]["name"] == "Example edited"
+
+    #
+    # Publicar v1.
+    #
+    response = client.post(
+        f"/api/v1/workflows/{workflow_id}/publish",
+        headers=users["ADMIN"],
+    )
+
+    assert response.status_code == 200, response.text
+
+    published = response.json()
+
+    assert published["version"] == 1
+    assert published["status"] == "PUBLISHED"
+    assert published["published_at"] is not None
+
+    #
+    # Editar depois do publish deve criar v2 DRAFT.
+    #
+    body["name"] = "Example version 2"
+    body["revision"] = edited["revision"]
+
+    response = client.put(
+        f"/api/v1/workflows/{workflow_id}",
+        headers=users["ADMIN"],
+        json=body,
+    )
+
+    assert response.status_code == 200, response.text
+
+    version_two_workflow = response.json()
+
+    assert version_two_workflow["current_version"] == 2
+
+    versions = client.get(
+        f"/api/v1/workflows/{workflow_id}/versions",
+        headers=users["ADMIN"],
+    ).json()
+
+    assert len(versions) == 2
+
+    assert versions[0]["version"] == 2
+    assert versions[0]["status"] == "DRAFT"
+
+    assert versions[1]["version"] == 1
+    assert versions[1]["status"] == "PUBLISHED"
+
+    #
+    # Publicar v2 arquiva automaticamente v1.
+    #
+    response = client.post(
+        f"/api/v1/workflows/{workflow_id}/publish",
+        headers=users["ADMIN"],
+    )
+
+    assert response.status_code == 200, response.text
+
+    versions = client.get(
+        f"/api/v1/workflows/{workflow_id}/versions",
+        headers=users["ADMIN"],
+    ).json()
+
+    assert versions[0]["version"] == 2
+    assert versions[0]["status"] == "PUBLISHED"
+
+    assert versions[1]["version"] == 1
+    assert versions[1]["status"] == "ARCHIVED"
