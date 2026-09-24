@@ -1418,3 +1418,130 @@ button {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* WORKFLOW VERSIONS */
+
+.version-dialog {
+  width: min(720px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #d8e0dc;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow:
+    0 24px 70px
+    rgb(20 35 30 / 20%);
+}
+
+.version-dialog__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 16px;
+  border-bottom: 1px solid #e4e9e7;
+  background: #fafcfb;
+  color: #66756f;
+  font-size: 11px;
+}
+
+.version-dialog__actions {
+  display: flex;
+  gap: 7px;
+}
+
+.version-dialog__actions button {
+  min-height: 31px;
+  padding: 0 10px;
+}
+
+.version-dialog__error {
+  margin: 14px 16px 0;
+}
+
+.version-dialog__body {
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.version-row {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e0e6e3;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.version-row--current {
+  border-color: #93bbaa;
+  background: #f8fcfa;
+}
+
+.version-row__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.version-row__head > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.version-row__head > div > strong {
+  font-size: 15px;
+}
+
+.version-current {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #e6f2ed;
+  color: #34745d;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.version-status {
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.version-status--draft {
+  color: #8a6b20;
+}
+
+.version-status--published {
+  color: #177254;
+}
+
+.version-status--archived {
+  color: #7e8682;
+}
+
+.version-row__meta {
+  display: grid;
+  grid-template-columns:
+    80px minmax(0, 1fr);
+  gap: 5px 10px;
+  font-size: 10px;
+}
+
+.version-row__meta > span {
+  color: #84908b;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.version-row__meta code,
+.version-row__meta strong {
+  overflow-wrap: anywhere;
+  font-size: 10px;
+}

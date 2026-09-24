@@ -29,6 +29,7 @@ import { Login } from './Login'
 import { ExecutionDetail } from './ExecutionDetail'
 import { ExecutionDialog } from './ExecutionDialog'
 import { ExecutionHistory } from './ExecutionHistory'
+import { VersionDialog } from './VersionDialog'
 import {
   NodeInspector,
   type InspectorNodeData,
@@ -40,7 +41,9 @@ import {
   getExecutionLogs,
   getWorkflowVersion,
   listExecutions,
+  listWorkflowVersions,
   listWorkflows,
+  publishWorkflow,
   saveWorkflow,
   type AuthSession,
   type Execution,
@@ -1378,6 +1381,32 @@ function App() {
     null,
   )
 
+
+  const [
+    versionDialogOpen,
+    setVersionDialogOpen,
+  ] = useState(false)
+
+  const [
+    versionList,
+    setVersionList,
+  ] = useState<WorkflowVersion[]>([])
+
+  const [
+    versionListLoading,
+    setVersionListLoading,
+  ] = useState(false)
+
+  const [
+    versionError,
+    setVersionError,
+  ] = useState('')
+
+  const [
+    versionPublishing,
+    setVersionPublishing,
+  ] = useState(false)
+
   const [
     workflowLoading,
     setWorkflowLoading,
@@ -1729,6 +1758,99 @@ function App() {
   const validation = useMemo(
     () => validateGraph(graph),
     [graph],
+  )
+
+
+  const loadVersions = useCallback(
+    async () => {
+      if (
+        !session
+        || !selectedWorkflow
+      ) {
+        return
+      }
+
+      setVersionListLoading(true)
+      setVersionError('')
+
+      try {
+        const rows =
+          await listWorkflowVersions(
+            session.access_token,
+            selectedWorkflow.id,
+          )
+
+        setVersionList(rows)
+      } catch (exc) {
+        setVersionError(
+          exc instanceof Error
+            ? exc.message
+            : 'Falha ao carregar versões',
+        )
+      } finally {
+        setVersionListLoading(false)
+      }
+    },
+    [
+      selectedWorkflow,
+      session,
+    ],
+  )
+
+
+  const handlePublishWorkflow = useCallback(
+    async () => {
+      if (
+        !session
+        || !selectedWorkflow
+        || !loadedVersion
+      ) {
+        return
+      }
+
+      setVersionPublishing(true)
+      setVersionError('')
+
+      try {
+        const published =
+          await publishWorkflow(
+            session.access_token,
+            selectedWorkflow.id,
+          )
+
+        setLoadedVersion(
+          published,
+        )
+
+        const versions =
+          await listWorkflowVersions(
+            session.access_token,
+            selectedWorkflow.id,
+          )
+
+        setVersionList(versions)
+
+        const workflows =
+          await listWorkflows(
+            session.access_token,
+          )
+
+        setWorkflows(workflows)
+      } catch (exc) {
+        setVersionError(
+          exc instanceof Error
+            ? exc.message
+            : 'Falha ao publicar versão',
+        )
+      } finally {
+        setVersionPublishing(false)
+      }
+    },
+    [
+      loadedVersion,
+      selectedWorkflow,
+      session,
+    ],
   )
 
 
@@ -2230,6 +2352,19 @@ function App() {
         <div className="topbar-actions">
           <button
             type="button"
+            disabled={
+              !selectedWorkflow
+              || !loadedVersion
+            }
+            onClick={() => {
+              setVersionDialogOpen(true)
+              void loadVersions()
+            }}
+          >
+            Versões
+          </button>
+          <button
+            type="button"
             onClick={() => {
               setHistoryOpen(true)
               void loadExecutionHistory()
@@ -2319,6 +2454,38 @@ function App() {
           {saveError || saveMessage}
         </div>
       )}
+
+      <VersionDialog
+        open={versionDialogOpen}
+        loading={versionListLoading}
+        publishing={versionPublishing}
+        error={versionError}
+        currentVersion={
+          selectedWorkflow?.current_version
+          ?? null
+        }
+        versions={versionList}
+        canPublish={
+          ['ADMIN', 'DEVELOPER'].includes(
+            session.role,
+          )
+        }
+        onRefresh={() => {
+          void loadVersions()
+        }}
+        onPublish={() => {
+          if (
+            window.confirm(
+              `Publicar a versão v${selectedWorkflow?.current_version ?? ''}?`,
+            )
+          ) {
+            void handlePublishWorkflow()
+          }
+        }}
+        onClose={() =>
+          setVersionDialogOpen(false)
+        }
+      />
 
       <ExecutionHistory
         open={historyOpen}

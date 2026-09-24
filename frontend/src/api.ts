@@ -404,3 +404,17 @@ export async function cancelExecution(
     },
   )
 }
+
+
+export async function publishWorkflow(
+  token: string,
+  workflowId: string,
+): Promise<WorkflowVersion> {
+  return api<WorkflowVersion>(
+    `/workflows/${workflowId}/publish`,
+    {
+      method: 'POST',
+      token,
+    },
+  )
+}
