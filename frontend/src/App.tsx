@@ -27,6 +27,7 @@ import '@xyflow/react/dist/style.css'
 import './App.css'
 import { Login } from './Login'
 import { ExecutionDialog } from './ExecutionDialog'
+import { ExecutionHistory } from './ExecutionHistory'
 import {
   NodeInspector,
   type InspectorNodeData,
@@ -37,6 +38,7 @@ import {
   getExecution,
   getExecutionLogs,
   getWorkflowVersion,
+  listExecutions,
   listWorkflows,
   saveWorkflow,
   type AuthSession,
@@ -1406,6 +1408,27 @@ function App() {
     setExecutionDialogOpen,
   ] = useState(false)
 
+
+  const [
+    historyOpen,
+    setHistoryOpen,
+  ] = useState(false)
+
+  const [
+    historyLoading,
+    setHistoryLoading,
+  ] = useState(false)
+
+  const [
+    historyError,
+    setHistoryError,
+  ] = useState('')
+
+  const [
+    executionHistory,
+    setExecutionHistory,
+  ] = useState<Execution[]>([])
+
   const [
     executionInput,
     setExecutionInput,
@@ -1755,6 +1778,38 @@ function App() {
   )
 
 
+  const loadExecutionHistory = useCallback(
+    async () => {
+      if (!session) {
+        return
+      }
+
+      setHistoryLoading(true)
+      setHistoryError('')
+
+      try {
+        const rows =
+          await listExecutions(
+            session.access_token,
+            30,
+            0,
+          )
+
+        setExecutionHistory(rows)
+      } catch (exc) {
+        setHistoryError(
+          exc instanceof Error
+            ? exc.message
+            : 'Falha ao carregar histórico',
+        )
+      } finally {
+        setHistoryLoading(false)
+      }
+    },
+    [session],
+  )
+
+
   const handleCancelExecution = useCallback(
     async () => {
       if (
@@ -2095,6 +2150,15 @@ function App() {
         <div className="topbar-actions">
           <button
             type="button"
+            onClick={() => {
+              setHistoryOpen(true)
+              void loadExecutionHistory()
+            }}
+          >
+            Histórico
+          </button>
+          <button
+            type="button"
             disabled={
               !selectedWorkflow
               || !loadedVersion
@@ -2175,6 +2239,19 @@ function App() {
           {saveError || saveMessage}
         </div>
       )}
+
+      <ExecutionHistory
+        open={historyOpen}
+        loading={historyLoading}
+        error={historyError}
+        executions={executionHistory}
+        onRefresh={() => {
+          void loadExecutionHistory()
+        }}
+        onClose={() =>
+          setHistoryOpen(false)
+        }
+      />
 
       <ExecutionDialog
         open={executionDialogOpen}
