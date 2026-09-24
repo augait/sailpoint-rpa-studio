@@ -402,3 +402,47 @@ button {
     margin: 10px;
   }
 }
+
+.validation-box {
+  margin-top: 20px;
+  padding: 12px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.validation-box strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.validation-box p {
+  margin: 0;
+}
+
+.validation-box ul {
+  margin: 9px 0 0;
+  padding-left: 17px;
+}
+
+.validation-box li + li {
+  margin-top: 4px;
+}
+
+.validation-box--ok {
+  border-color: #b9daca;
+  background: #eef8f3;
+  color: #25664f;
+}
+
+.validation-box--error {
+  border-color: #e3c7be;
+  background: #fbf2ef;
+  color: #8a4e3b;
+}
+
+.topbar-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
