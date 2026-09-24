@@ -667,3 +667,106 @@ def test_native_graph_persists_into_execution_snapshot(
             "true",
             "false",
         }
+
+
+def test_native_graph_survives_workflow_save(
+    client,
+    users,
+):
+    application = client.post(
+        "/api/v1/applications",
+        headers=users["ADMIN"],
+        json={
+            "name": "Native graph save app",
+            "url": "http://127.0.0.1:18081",
+        },
+    )
+
+    assert application.status_code == 201
+
+    graph = native_condition_graph()
+
+    response = client.post(
+        "/api/v1/workflows",
+        headers=users["ADMIN"],
+        json={
+            "name": "Native graph save",
+            "application_id": application.json()["id"],
+            "operation": "CONDITION_TEST",
+            "steps": [],
+            "graph": graph,
+        },
+    )
+
+    assert response.status_code == 201, response.text
+
+    workflow = response.json()
+
+    save = client.put(
+        f"/api/v1/workflows/{workflow['id']}",
+        headers=users["ADMIN"],
+        json={
+            "name": "Native graph save renamed",
+            "application_id": workflow["application_id"],
+            "operation": workflow["operation"],
+            "timeout_seconds": workflow["timeout_seconds"],
+
+            #
+            # Simula uma lista conflitante enviada pela UI.
+            # O graph precisa continuar sendo a fonte funcional.
+            #
+            "steps": [
+                {
+                    "id": "must_not_replace_graph",
+                    "type": "wait",
+                    "wait_ms": 5,
+                }
+            ],
+
+            "graph": graph,
+            "revision": workflow["revision"],
+        },
+    )
+
+    assert save.status_code == 200, save.text
+
+    saved_workflow = save.json()
+
+    assert sorted(
+        step["id"]
+        for step in saved_workflow["steps"]
+    ) == [
+        "it_path",
+        "other_path",
+    ]
+
+    versions = client.get(
+        f"/api/v1/workflows/{workflow['id']}/versions",
+        headers=users["ADMIN"],
+    )
+
+    assert versions.status_code == 200
+
+    current = versions.json()[0]
+
+    conditions = [
+        node
+        for node in current["graph"]["nodes"]
+        if node["kind"] == "condition"
+    ]
+
+    assert len(conditions) == 1
+
+    assert (
+        conditions[0]["expression"]
+        == '{{department}} == "IT"'
+    )
+
+    assert {
+        edge["branch"]
+        for edge in current["graph"]["edges"]
+        if edge["source"] == "condition_department"
+    } == {
+        "true",
+        "false",
+    }

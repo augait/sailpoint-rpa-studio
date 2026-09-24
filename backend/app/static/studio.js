@@ -45,6 +45,73 @@ const head = (title, subtitle, buttons = "") =>
   `<div class="page-head"><div><p class="eyebrow">AUTOMAÇÃO DE IDENTIDADES</p><h1>${title}</h1><p class="muted">${subtitle}</p></div><div class="actions">${buttons}</div></div>`;
 const canEdit = () => ["ADMIN", "DEVELOPER"].includes(state.role);
 const canRun = () => ["ADMIN", "DEVELOPER", "OPERATOR"].includes(state.role);
+
+function isLinearGraphForSteps(graph, steps = []) {
+  if (!graph) return true;
+
+  const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+  const edges = Array.isArray(graph.edges) ? graph.edges : [];
+
+  const expectedIds = [
+    "__start__",
+    ...steps.map((step) => `node_${step.id}`),
+    "__end__",
+  ];
+
+  if (
+    graph.start_node_id !== "__start__" ||
+    graph.end_node_id !== "__end__" ||
+    nodes.length !== expectedIds.length ||
+    edges.length !== expectedIds.length - 1
+  ) {
+    return false;
+  }
+
+  const nodeById = new Map(
+    nodes.map((node) => [node.id, node]),
+  );
+
+  if (
+    nodeById.get("__start__")?.kind !== "start" ||
+    nodeById.get("__end__")?.kind !== "end"
+  ) {
+    return false;
+  }
+
+  for (const step of steps) {
+    const node = nodeById.get(`node_${step.id}`);
+
+    if (
+      node?.kind !== "action" ||
+      node.step?.id !== step.id
+    ) {
+      return false;
+    }
+  }
+
+  for (let index = 0; index < expectedIds.length - 1; index += 1) {
+    const source = expectedIds[index];
+    const target = expectedIds[index + 1];
+
+    const matches = edges.filter(
+      (edge) =>
+        edge.source === source &&
+        edge.target === target &&
+        edge.branch === "default",
+    );
+
+    if (matches.length !== 1) {
+      return false;
+    }
+  }
+
+  return edges.every(
+    (edge) => edge.branch === "default",
+  );
+}
+
+const hasNativeGraph = (graph, steps = []) =>
+  !!graph && !isLinearGraphForSteps(graph, steps);
 const metric = (label, value, sub) =>
   `<div class="metric"><div class="label">${label}<span>↗</span></div><strong>${value ?? "—"}</strong><small>${sub}</small></div>`;
 function table(rows) {
@@ -196,10 +263,21 @@ async function designer(id) {
     const current = versions.find(
       (v) => v.version === workflow.current_version,
     );
+
     versionStatus = current?.status || "UNKNOWN";
+
+    //
+    // Workflow mantém steps por compatibilidade,
+    // mas a estrutura funcional da Fase 2 vive na versão.
+    //
+    workflow.graph = current?.graph || null;
   }
 
   workflow.version_status = versionStatus;
+  workflow.native_graph = hasNativeGraph(
+    workflow.graph,
+    workflow.steps,
+  );
 
   page = "designer";
   clearInterval(poll);
@@ -212,6 +290,33 @@ async function designer(id) {
            : ""
        }`
     : "";
+
+  const paletteBody = workflow.native_graph
+    ? `<p class="notice">
+         Este workflow possui um grafo ramificado.
+         O designer sequencial está em modo de preservação:
+         metadados e execução continuam disponíveis, mas a
+         estrutura do grafo não será convertida para uma lista linear.
+       </p>`
+    : `${actions
+        .map(
+          (action, index) =>
+            button(
+              `${String(index + 1).padStart(2, "0")} · ${labels[action]}`,
+              "add-step",
+              action,
+            ),
+        )
+        .join("")}
+       <hr>
+       ${button("◉ Abrir Recorder", "recorder")}
+       ${button("↥ Importar gravação", "import")}
+       <input
+         id="import-file"
+         type="file"
+         accept="application/json"
+         hidden
+       >`;
 
   view.innerHTML =
     head(
@@ -230,23 +335,114 @@ async function designer(id) {
            : ""
        }`,
     ) +
-    `<div class="workflow-meta form-grid"><label>Nome do processo<input id="wf-name" value="${esc(workflow.name)}"></label><label>Aplicação<select id="wf-app">${apps.map((a) => `<option value="${a.id}" ${a.id === workflow.application_id ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select></label><label>Operação IAM<input id="wf-operation" value="${esc(workflow.operation)}"></label><label>Timeout total (segundos)<input id="wf-timeout" type="number" min="5" max="3600" value="${workflow.timeout_seconds}"></label></div><div class="designer"><section class="panel palette"><div class="panel-head"><h2>Ações</h2></div><div class="panel-body">${actions.map((a, i) => button(`${String(i + 1).padStart(2, "0")} · ${labels[a]}`, "add-step", a)).join("")}<hr>${button("◉ Abrir Recorder", "recorder")}${button("↥ Importar gravação", "import")}<input id="import-file" type="file" accept="application/json" hidden></div></section><section><div class="step-list"><div class="start-end">● START</div><div id="steps"></div><div class="start-end">● END</div></div><p class="hint">Variáveis: {{username}}, {{email}}, {{password}}. Senhas devem ser fornecidas na execução. Fallbacks são tentados na ordem configurada.</p></section></div>`;
+    `<div class="workflow-meta form-grid"><label>Nome do processo<input id="wf-name" value="${esc(workflow.name)}"></label><label>Aplicação<select id="wf-app">${apps.map((a) => `<option value="${a.id}" ${a.id === workflow.application_id ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select></label><label>Operação IAM<input id="wf-operation" value="${esc(workflow.operation)}"></label><label>Timeout total (segundos)<input id="wf-timeout" type="number" min="5" max="3600" value="${workflow.timeout_seconds}"></label></div><div class="designer"><section class="panel palette"><div class="panel-head"><h2>Ações</h2></div><div class="panel-body">${paletteBody}</div></section><section><div class="step-list"><div class="start-end">● START</div><div id="steps"></div><div class="start-end">● END</div></div><p class="hint">Variáveis: {{username}}, {{email}}, {{password}}. Senhas devem ser fornecidas na execução. Fallbacks são tentados na ordem configurada.</p></section></div>`;
   renderSteps();
-  bind("#import-file", "change", async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 1000000) throw Error("Arquivo excede 1 MB");
-    const data = JSON.parse(await file.text());
-    const steps = Array.isArray(data) ? data : data.steps;
-    if (!Array.isArray(steps) || steps.length > 200)
-      throw Error("Gravação inválida");
-    workflow.steps = steps;
-    renderSteps();
-    toast("Gravação importada. Revise as etapas antes de salvar.");
-  });
+
+  if (!workflow.native_graph) {
+    bind("#import-file", "change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > 1000000) throw Error("Arquivo excede 1 MB");
+      const data = JSON.parse(await file.text());
+      const steps = Array.isArray(data) ? data : data.steps;
+      if (!Array.isArray(steps) || steps.length > 200)
+        throw Error("Gravação inválida");
+      workflow.steps = steps;
+      renderSteps();
+      toast("Gravação importada. Revise as etapas antes de salvar.");
+    });
+  }
 }
 function renderSteps() {
-  document.querySelector("#steps").innerHTML =
+  const container = document.querySelector("#steps");
+
+  if (workflow.native_graph) {
+    const nodes = workflow.graph?.nodes || [];
+    const edges = workflow.graph?.edges || [];
+
+    const visibleNodes = nodes.filter(
+      (node) =>
+        node.kind !== "start" &&
+        node.kind !== "end",
+    );
+
+    container.innerHTML =
+      visibleNodes
+        .map((node, index) => {
+          const outgoing = edges
+            .filter((edge) => edge.source === node.id)
+            .map(
+              (edge) =>
+                `${edge.branch} → ${edge.target}`,
+            )
+            .join(" · ");
+
+          if (node.kind === "condition") {
+            return `
+              <div class="step">
+                <span class="step-index">◇</span>
+                <div>
+                  <b>CONDITION</b>
+                  <small>
+                    ${esc(node.expression)}
+                    ${outgoing ? ` · ${esc(outgoing)}` : ""}
+                  </small>
+                </div>
+                <div class="actions">
+                  <span class="badge">READ ONLY</span>
+                </div>
+              </div>
+            `;
+          }
+
+          if (node.kind === "loop") {
+            return `
+              <div class="step">
+                <span class="step-index">↻</span>
+                <div>
+                  <b>LOOP</b>
+                  <small>
+                    ${esc(node.id)}
+                    · máximo ${esc(node.max_iterations)}
+                    ${outgoing ? ` · ${esc(outgoing)}` : ""}
+                  </small>
+                </div>
+                <div class="actions">
+                  <span class="badge">READ ONLY</span>
+                </div>
+              </div>
+            `;
+          }
+
+          const step = node.step || {};
+
+          return `
+            <div class="step ${step.enabled === false ? "disabled" : ""}">
+              <span class="step-index">${index + 1}</span>
+              <div>
+                <b>${esc(step.name || labels[step.type] || step.type || "ACTION")}</b>
+                <small>
+                  ${esc(step.type || "action")}
+                  · ${esc(step.id || node.id)}
+                  ${outgoing ? ` · ${esc(outgoing)}` : ""}
+                </small>
+              </div>
+              <div class="actions">
+                <span class="badge">READ ONLY</span>
+              </div>
+            </div>
+          `;
+        })
+        .join("") ||
+      empty(
+        "Grafo sem nós executáveis",
+        "A versão atual não possui ACTION, CONDITION ou LOOP.",
+      );
+
+    return;
+  }
+
+  container.innerHTML =
     workflow.steps
       .map(
         (s, i) =>
@@ -258,6 +454,7 @@ function renderSteps() {
       "Escolha uma ação na paleta ou importe uma gravação.",
     );
 }
+
 function stepForm(index, type) {
   const old = index === null ? null : workflow.steps[index];
   const s = old || {
@@ -368,6 +565,15 @@ async function saveWorkflow() {
     operation: document.querySelector("#wf-operation").value,
     timeout_seconds: Number(document.querySelector("#wf-timeout").value),
     steps: workflow.steps,
+
+    //
+    // Graph linear é regenerado pelo backend a partir de steps.
+    // Graph nativo precisa ser explicitamente preservado.
+    //
+    ...(workflow.native_graph && workflow.graph
+      ? { graph: workflow.graph }
+      : {}),
+
     ...(workflow.revision ? { revision: workflow.revision } : {}),
   };
   workflow = await api(
@@ -388,8 +594,15 @@ async function saveWorkflow() {
 async function runForm() {
   if (canEdit()) await saveWorkflow();
   if (!workflow.id) throw Error("Salve o workflow antes de executar.");
+  const variableSource = {
+    steps: workflow.steps,
+    graph: workflow.graph || null,
+  };
+
   const names = [
-    ...new Set(JSON.stringify(workflow.steps).match(/{{\s*[\w.]+\s*}}/g) || []),
+    ...new Set(
+      JSON.stringify(variableSource).match(/{{\s*[\w.]+\s*}}/g) || [],
+    ),
   ]
     .map((x) => x.replace(/[{}\s]/g, ""))
     .filter((x) => !x.startsWith("application."));
