@@ -85,6 +85,7 @@ def create_execution(
         "version": version.version,
         "version_status": version.status,
         "steps": version.steps,
+        "graph": version.graph,
         "timeout_seconds": version.timeout_seconds,
         "application": {
             k: getattr(application, k)

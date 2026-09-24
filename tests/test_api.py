@@ -102,6 +102,16 @@ def test_snapshot_queue_and_idempotency(client, users, monkeypatch):
         assert record.snapshot["version"] == 1
         assert record.snapshot["version_status"] == "DRAFT"
 
+        graph = record.snapshot["graph"]
+
+        assert graph is not None
+        assert graph["start_node_id"] == "__start__"
+        assert graph["end_node_id"] == "__end__"
+        assert len(graph["nodes"]) == 3
+        assert len(graph["edges"]) == 2
+        assert graph["nodes"][1]["kind"] == "action"
+        assert graph["nodes"][1]["step"]["id"] == "wait"
+
         event = db.scalar(
             __import__("sqlalchemy").select(OutboxEvent).where(
                 OutboxEvent.aggregate_id == record.id
@@ -221,6 +231,11 @@ def test_workflow_version_lifecycle(client, users):
     assert len(data) == 1
     assert data[0]["version"] == 1
     assert data[0]["status"] == "DRAFT"
+    assert data[0]["graph"] is not None
+    assert data[0]["graph"]["start_node_id"] == "__start__"
+    assert data[0]["graph"]["end_node_id"] == "__end__"
+    assert len(data[0]["graph"]["nodes"]) == 3
+    assert len(data[0]["graph"]["edges"]) == 2
 
     #
     # Editar um draft não cria versão nova.
@@ -233,6 +248,16 @@ def test_workflow_version_lifecycle(client, users):
         "steps": workflow["steps"],
         "revision": workflow["revision"],
     }
+
+    # Alterar os steps precisa regenerar o graph.
+    body["steps"] = [
+        *body["steps"],
+        {
+            "id": "wait2",
+            "type": "wait",
+            "wait_ms": 10,
+        },
+    ]
 
     response = client.put(
         f"/api/v1/workflows/{workflow_id}",
@@ -253,6 +278,27 @@ def test_workflow_version_lifecycle(client, users):
     assert versions[0]["version"] == 1
     assert versions[0]["status"] == "DRAFT"
     assert versions[0]["name"] == "Example edited"
+    assert versions[0]["graph"] is not None
+
+    action_nodes = [
+        node
+        for node in versions[0]["graph"]["nodes"]
+        if node["kind"] == "action"
+    ]
+
+    assert len(action_nodes) == 2
+    assert [
+        node["step"]["id"]
+        for node in action_nodes
+    ] == ["wait", "wait2"]
+
+    assert len(
+        versions[0]["graph"]["nodes"]
+    ) == 4
+
+    assert len(
+        versions[0]["graph"]["edges"]
+    ) == 3
 
     #
     # Publicar v1.

@@ -9,6 +9,7 @@ from backend.app.models.entities import (
     WorkflowVersion,
     utcnow,
 )
+from backend.app.rpa.graph import linear_graph_from_steps
 from backend.app.schemas.contracts import WorkflowIn
 from backend.app.services.audit_service import audit
 
@@ -43,7 +44,17 @@ def apply_version_data(
     version.application_id = body.application_id
     version.name = body.name
     version.operation = body.operation
-    version.steps = [step.model_dump() for step in body.steps]
+
+    steps = [
+        step.model_dump()
+        for step in body.steps
+    ]
+
+    version.steps = steps
+    version.graph = linear_graph_from_steps(
+        steps
+    ).model_dump(mode="json")
+
     version.timeout_seconds = body.timeout_seconds
 
 
@@ -135,6 +146,9 @@ def create(
         name=record.name,
         operation=record.operation,
         steps=record.steps,
+        graph=linear_graph_from_steps(
+            record.steps
+        ).model_dump(mode="json"),
         timeout_seconds=record.timeout_seconds,
         created_by=user.id,
     )
@@ -212,7 +226,16 @@ def save(
             application_id=body.application_id,
             name=body.name,
             operation=body.operation,
-            steps=[step.model_dump() for step in body.steps],
+            steps=[
+                step.model_dump()
+                for step in body.steps
+            ],
+            graph=linear_graph_from_steps(
+                [
+                    step.model_dump()
+                    for step in body.steps
+                ]
+            ).model_dump(mode="json"),
             timeout_seconds=body.timeout_seconds,
             created_by=user.id,
         )
