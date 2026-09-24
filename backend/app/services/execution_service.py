@@ -7,17 +7,20 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from backend.app.core.config import settings
-from backend.app.core.queue import queue
 from backend.app.core.security import seal
 from backend.app.models.entities import (
     Application,
     Execution,
+    OutboxEvent,
     Workflow,
     WorkflowVersion,
     uid,
-    utcnow,
 )
 from backend.app.services.audit_service import audit
+from backend.app.services.outbox_service import (
+    EXECUTION_ENQUEUE,
+    dispatch_event,
+)
 
 
 def create_execution(
@@ -109,7 +112,26 @@ def create_execution(
         status="QUEUED",
     )
 
+    outbox = OutboxEvent(
+        id=uid(),
+        event_type=EXECUTION_ENQUEUE,
+        aggregate_type="EXECUTION",
+        aggregate_id=record.id,
+        dedupe_key=f"execution:{record.id}:enqueue",
+        payload={
+            "execution_id": record.id,
+            "job_timeout": version.timeout_seconds + 90,
+        },
+        status="PENDING",
+    )
+
+    #
+    # Ponto central do Transactional Outbox:
+    #
+    # Execution e OutboxEvent entram na MESMA transação.
+    #
     db.add(record)
+    db.add(outbox)
 
     audit(
         db,
@@ -121,6 +143,7 @@ def create_execution(
         workflow_version_id=version.id,
         version=version.version,
         version_status=version.status,
+        outbox_event_id=outbox.id,
     )
 
     try:
@@ -134,40 +157,12 @@ def create_execution(
 
         raise
 
-    try:
-        queue().enqueue(
-            "worker.tasks.execute",
-            record.id,
-            job_id=record.id,
-            job_timeout=version.timeout_seconds + 90,
-            result_ttl=3600,
-            failure_ttl=86400,
-            on_failure="worker.tasks.job_failed",
-        )
-
-    except Exception:
-        record.status = "FAILED"
-        record.error = "QUEUE_UNAVAILABLE"
-        record.finished_at = utcnow()
-        record.input_encrypted = ""
-
-        audit(
-            db,
-            user.username,
-            "EXECUTION_FAILED",
-            record.id,
-            ip,
-            reason="QUEUE_UNAVAILABLE",
-        )
-
-        db.commit()
-
-        raise HTTPException(
-            503,
-            {
-                "message": "Fila indisponível",
-                "execution_id": record.id,
-            },
-        )
+    #
+    # Depois do COMMIT fazemos uma tentativa imediata.
+    #
+    # Se Redis estiver indisponível, dispatch_event() marca
+    # o Outbox como FAILED, mas a Execution continua QUEUED.
+    #
+    dispatch_event(outbox.id)
 
     return record

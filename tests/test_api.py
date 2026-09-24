@@ -2,8 +2,8 @@ from types import SimpleNamespace
 
 from backend.app.core.database import Session
 from backend.app.core.security import unseal
-from backend.app.models.entities import Execution
-from backend.app.services import execution_service
+from backend.app.models.entities import Execution, OutboxEvent
+from backend.app.services import execution_service, outbox_service
 
 
 def create_workflow(client, headers):
@@ -70,9 +70,12 @@ def test_workflow_concurrency_guard(client, users):
 def test_snapshot_queue_and_idempotency(client, users, monkeypatch):
     jobs = []
     monkeypatch.setattr(
-        execution_service,
+        outbox_service,
         "queue",
-        lambda: SimpleNamespace(enqueue=lambda *a, **kw: jobs.append((a, kw))),
+        lambda: SimpleNamespace(
+            fetch_job=lambda job_id: None,
+            enqueue=lambda *a, **kw: jobs.append((a, kw)),
+        ),
     )
     workflow = create_workflow(client, users["ADMIN"])
     url = f"/api/v1/workflows/{workflow['id']}/execute"
@@ -98,6 +101,18 @@ def test_snapshot_queue_and_idempotency(client, users, monkeypatch):
         assert record.snapshot["revision"] == 1
         assert record.snapshot["version"] == 1
         assert record.snapshot["version_status"] == "DRAFT"
+
+        event = db.scalar(
+            __import__("sqlalchemy").select(OutboxEvent).where(
+                OutboxEvent.aggregate_id == record.id
+            )
+        )
+
+        assert event is not None
+        assert event.event_type == "EXECUTION_ENQUEUE"
+        assert event.status == "SENT"
+        assert event.dedupe_key == f"execution:{record.id}:enqueue"
+
     assert (
         client.post(
             f"/api/v1/executions/{execution['id']}/cancel", headers=users["OPERATOR"]
@@ -106,17 +121,65 @@ def test_snapshot_queue_and_idempotency(client, users, monkeypatch):
     )
 
 
-def test_queue_failure_not_success(client, users, monkeypatch):
-    def fail(*a, **kw):
-        raise ConnectionError()
+def test_queue_failure_keeps_execution_durable(
+    client,
+    users,
+    monkeypatch,
+):
+    class FailedQueue:
+        def fetch_job(self, job_id):
+            return None
 
-    monkeypatch.setattr(execution_service, "queue", lambda: SimpleNamespace(enqueue=fail))
-    wf = create_workflow(client, users["ADMIN"])
-    response = client.post(
-        f"/api/v1/workflows/{wf['id']}/execute", headers=users["ADMIN"], json={"input": {}}
+        def enqueue(self, *args, **kwargs):
+            raise ConnectionError("redis offline")
+
+    monkeypatch.setattr(
+        outbox_service,
+        "queue",
+        lambda: FailedQueue(),
     )
-    assert response.status_code == 503
-    assert client.get("/api/v1/executions", headers=users["ADMIN"]).json()[0]["status"] == "FAILED"
+
+    wf = create_workflow(
+        client,
+        users["ADMIN"],
+    )
+
+    response = client.post(
+        f"/api/v1/workflows/{wf['id']}/execute",
+        headers=users["ADMIN"],
+        json={"input": {}},
+    )
+
+    #
+    # A API aceitou o pedido porque ele está duravelmente
+    # persistido no PostgreSQL.
+    #
+    assert response.status_code == 202, response.text
+
+    execution_id = response.json()["id"]
+
+    with Session() as db:
+        record = db.get(
+            Execution,
+            execution_id,
+        )
+
+        assert record is not None
+        assert record.status == "QUEUED"
+        assert record.input_encrypted
+
+        event = db.scalar(
+            __import__("sqlalchemy").select(
+                OutboxEvent
+            ).where(
+                OutboxEvent.aggregate_id == execution_id
+            )
+        )
+
+        assert event is not None
+        assert event.status == "FAILED"
+        assert event.attempts == 1
+        assert event.last_error == "ConnectionError"
 
 
 def test_validation_does_not_echo_secrets(client, users):
