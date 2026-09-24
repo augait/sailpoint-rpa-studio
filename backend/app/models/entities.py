@@ -274,7 +274,7 @@ class ExecutionLog(Base):
         DateTime(timezone=True),
         default=utcnow,
     )
-    step_id: Mapped[str | None] = mapped_column(String(60))
+    step_id: Mapped[str | None] = mapped_column(String(100))
     event: Mapped[str] = mapped_column(String(50))
     details: Mapped[dict] = mapped_column(JSON, default=dict)
 
