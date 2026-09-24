@@ -32,6 +32,7 @@ import {
   type InspectorNodeData,
 } from './NodeInspector'
 import {
+  cancelExecution,
   executeWorkflow,
   getExecution,
   getExecutionLogs,
@@ -1415,6 +1416,12 @@ function App() {
     setExecutionLoading,
   ] = useState(false)
 
+
+  const [
+    executionCancelling,
+    setExecutionCancelling,
+  ] = useState(false)
+
   const [
     executionError,
     setExecutionError,
@@ -1748,6 +1755,45 @@ function App() {
   )
 
 
+  const handleCancelExecution = useCallback(
+    async () => {
+      if (
+        !session
+        || !currentExecutionId
+      ) {
+        return
+      }
+
+      setExecutionCancelling(true)
+      setExecutionError('')
+
+      try {
+        const execution =
+          await cancelExecution(
+            session.access_token,
+            currentExecutionId,
+          )
+
+        setCurrentExecution(
+          execution,
+        )
+      } catch (exc) {
+        setExecutionError(
+          exc instanceof Error
+            ? exc.message
+            : 'Falha ao cancelar execução',
+        )
+      } finally {
+        setExecutionCancelling(false)
+      }
+    },
+    [
+      currentExecutionId,
+      session,
+    ],
+  )
+
+
   const handleExecuteWorkflow = useCallback(
     async () => {
       if (
@@ -1758,6 +1804,7 @@ function App() {
       }
 
       setExecutionLoading(true)
+      setExecutionCancelling(false)
       setExecutionError('')
       setCurrentExecution(null)
       setExecutionLogs([])
@@ -2069,6 +2116,7 @@ function App() {
             }
             onClick={() => {
               setExecutionError('')
+              setExecutionCancelling(false)
               setCurrentExecution(null)
               setExecutionLogs([])
               setExecutionDialogOpen(true)
@@ -2140,9 +2188,19 @@ function App() {
         error={executionError}
         execution={currentExecution}
         logs={executionLogs}
+        cancelling={executionCancelling}
         onInputChange={setExecutionInput}
         onRun={() => {
           void handleExecuteWorkflow()
+        }}
+        onCancel={() => {
+          if (
+            window.confirm(
+              'Solicitar cancelamento desta execução?',
+            )
+          ) {
+            void handleCancelExecution()
+          }
         }}
         onClose={() =>
           setExecutionDialogOpen(false)

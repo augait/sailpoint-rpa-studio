@@ -9,11 +9,13 @@ type ExecutionDialogProps = {
   workflowName: string
   inputJson: string
   loading: boolean
+  cancelling: boolean
   error: string
   execution: Execution | null
   logs: ExecutionLog[]
   onInputChange: (value: string) => void
   onRun: () => void
+  onCancel: () => void
   onClose: () => void
 }
 
@@ -41,11 +43,13 @@ export function ExecutionDialog({
   workflowName,
   inputJson,
   loading,
+  cancelling,
   error,
   execution,
   logs,
   onInputChange,
   onRun,
+  onCancel,
   onClose,
 }: ExecutionDialogProps) {
   if (!open) {
@@ -219,12 +223,26 @@ export function ExecutionDialog({
             Fechar
           </button>
 
+          {active && (
+            <button
+              type="button"
+              className="execution-dialog__cancel"
+              disabled={cancelling}
+              onClick={onCancel}
+            >
+              {cancelling
+                ? 'Cancelando...'
+                : 'Cancelar execução'}
+            </button>
+          )}
+
           <button
             type="button"
             className="button-primary"
             disabled={
               loading
               || Boolean(active)
+              || cancelling
             }
             onClick={onRun}
           >

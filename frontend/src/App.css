@@ -1231,3 +1231,18 @@ button {
   background: #f5f7f6;
   color: #59635f;
 }
+
+.execution-dialog__cancel {
+  border: 1px solid #d9aaa0;
+  background: #fff7f5;
+  color: #9c4338;
+}
+
+.execution-dialog__cancel:hover:not(:disabled) {
+  background: #ffefeb;
+}
+
+.execution-dialog__cancel:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
