@@ -26,6 +26,10 @@ import '@xyflow/react/dist/style.css'
 import './App.css'
 import { Login } from './Login'
 import {
+  NodeInspector,
+  type InspectorNodeData,
+} from './NodeInspector'
+import {
   getWorkflowVersion,
   listWorkflows,
   saveWorkflow,
@@ -1193,6 +1197,26 @@ function App() {
     setShowValidation,
   ] = useState(false)
 
+  const [
+    selectedNodeId,
+    setSelectedNodeId,
+  ] = useState<string | null>(
+    null,
+  )
+
+
+  const selectedNode = useMemo(
+    () =>
+      nodes.find(
+        (node) =>
+          node.id === selectedNodeId,
+      ) || null,
+    [
+      nodes,
+      selectedNodeId,
+    ],
+  )
+
 
   const handleAuthenticated = useCallback(
     async (
@@ -1260,6 +1284,7 @@ function App() {
         setNodes(canvas.nodes)
         setEdges(canvas.edges)
         setLoadedVersion(version)
+        setSelectedNodeId(null)
         setShowValidation(false)
 
         window.setTimeout(
@@ -1377,6 +1402,38 @@ function App() {
       selectedWorkflow,
       session,
       validation.ok,
+    ],
+  )
+
+
+  const updateSelectedNode = useCallback(
+    (
+      data: InspectorNodeData,
+    ) => {
+      if (!selectedNodeId) {
+        return
+      }
+
+      setNodes((currentNodes) =>
+        currentNodes.map(
+          (node) =>
+            node.id === selectedNodeId
+              ? {
+                  ...node,
+                  data:
+                    data as StudioNodeData,
+                }
+              : node,
+        ),
+      )
+
+      setSaveMessage('')
+      setSaveError('')
+      setShowValidation(false)
+    },
+    [
+      selectedNodeId,
+      setNodes,
     ],
   )
 
@@ -1903,6 +1960,17 @@ function App() {
                 onEdgesChange
               }
               onConnect={onConnect}
+              onNodeClick={(
+                _event,
+                node,
+              ) => {
+                setSelectedNodeId(
+                  node.id,
+                )
+              }}
+              onPaneClick={() => {
+                setSelectedNodeId(null)
+              }}
               fitView
               snapToGrid
               snapGrid={[20, 20]}
@@ -1927,6 +1995,17 @@ function App() {
             </ReactFlow>
           </div>
         </section>
+
+          <NodeInspector
+            nodeId={selectedNodeId}
+            data={
+              selectedNode
+                ? selectedNode.data
+                : null
+            }
+            onChange={updateSelectedNode}
+            onClose={() => setSelectedNodeId(null)}
+          />
       </main>
     </div>
   )
