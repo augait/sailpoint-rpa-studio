@@ -20,6 +20,10 @@ class GraphNodeNotSupported(Exception):
     pass
 
 
+class LoopIterationLimit(Exception):
+    pass
+
+
 class Engine:
     def __init__(
         self,
@@ -242,15 +246,35 @@ class Engine:
 
         current_id = graph.start_node_id
 
+        loop_iterations = {
+            node.id: 0
+            for node in graph.nodes
+            if node.kind == "loop"
+        }
+
         #
-        # Enquanto LOOP ainda não é executável,
-        # qualquer fluxo suportado precisa terminar
-        # dentro deste limite.
+        # Proteção global adicional.
         #
-        max_transitions = (
+        # O limite individual de cada LOOP continua sendo
+        # a principal proteção. Este teto também cobre
+        # grafos malformados ou combinações inesperadas.
+        #
+        base_transitions = (
             len(graph.nodes)
             + len(graph.edges)
             + 1
+        )
+
+        loop_budget = sum(
+            node.max_iterations or 0
+            for node in graph.nodes
+            if node.kind == "loop"
+        )
+
+        max_transitions = min(
+            1_000_000,
+            base_transitions
+            * (loop_budget + 1),
         )
 
         transitions = 0
@@ -325,9 +349,69 @@ class Engine:
                 transitions += 1
                 continue
 
-            #
-            # LOOP entra na próxima etapa.
-            #
+            if node.kind == "loop":
+                self.step_id = node.id
+
+                result = evaluate_condition(
+                    node.expression,
+                    self.variables,
+                )
+
+                completed = loop_iterations[
+                    node.id
+                ]
+
+                if not result:
+                    self.emit(
+                        "LOOP_EVALUATED",
+                        node.id,
+                        result=False,
+                        branch="exit",
+                        iteration=completed,
+                        max_iterations=node.max_iterations,
+                    )
+
+                    current_id = outgoing[
+                        node.id
+                    ]["exit"]
+
+                    transitions += 1
+                    continue
+
+                if completed >= node.max_iterations:
+                    self.emit(
+                        "LOOP_LIMIT_REACHED",
+                        node.id,
+                        iteration=completed,
+                        max_iterations=node.max_iterations,
+                    )
+
+                    raise LoopIterationLimit(
+                        node.id
+                    )
+
+                completed += 1
+
+                loop_iterations[
+                    node.id
+                ] = completed
+
+                self.emit(
+                    "LOOP_EVALUATED",
+                    node.id,
+                    result=True,
+                    branch="body",
+                    iteration=completed,
+                    max_iterations=node.max_iterations,
+                )
+
+                current_id = outgoing[
+                    node.id
+                ]["body"]
+
+                transitions += 1
+                continue
+
             raise GraphNodeNotSupported(
                 node.kind
             )
