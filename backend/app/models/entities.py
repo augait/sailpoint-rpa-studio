@@ -115,6 +115,14 @@ class WorkflowVersion(Base):
     name: Mapped[str] = mapped_column(String(120))
     operation: Mapped[str] = mapped_column(String(40))
     steps: Mapped[list] = mapped_column(JSON, default=list)
+
+    # Contrato de grafo da Fase 2.
+    # Temporariamente nullable durante a migração dos workflows sequenciais.
+    graph: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+    )
+
     timeout_seconds: Mapped[int] = mapped_column(Integer, default=600)
 
     # Workflows criados antes da Fase 2 não possuem autor histórico conhecido.
