@@ -94,7 +94,10 @@ def test_snapshot_queue_and_idempotency(client, users, monkeypatch):
     with Session() as db:
         record = db.get(Execution, execution["id"])
         assert unseal(record.input_encrypted)["password"] == "private"
+        assert record.workflow_version_id is not None
         assert record.snapshot["revision"] == 1
+        assert record.snapshot["version"] == 1
+        assert record.snapshot["version_status"] == "DRAFT"
     assert (
         client.post(
             f"/api/v1/executions/{execution['id']}/cancel", headers=users["OPERATOR"]
