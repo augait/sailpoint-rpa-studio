@@ -19,12 +19,20 @@ import {
   type Edge,
   type Node,
   type NodeProps,
+  type ReactFlowInstance,
 } from '@xyflow/react'
 
 import '@xyflow/react/dist/style.css'
 import './App.css'
 import { Login } from './Login'
-import type { AuthSession } from './api'
+import {
+  getWorkflowVersion,
+  listWorkflows,
+  type AuthSession,
+  type Workflow,
+  type WorkflowGraph,
+  type WorkflowVersion,
+} from './api'
 
 
 type StudioNodeKind =
@@ -45,13 +53,20 @@ type EdgeBranch =
 
 type ActionStep = {
   id: string
-  type:
-    | 'navigate'
-    | 'wait'
+  type: string
   name?: string
   enabled?: boolean
+  selectors?: Array<{
+    kind: string
+    value: string
+    name?: string | null
+  }>
+  value?: string
   url?: string
+  output?: string
+  timeout_ms?: number
   wait_ms?: number
+  secret?: boolean
 }
 
 
@@ -457,6 +472,197 @@ const initialEdges: Edge[] = [
     },
   },
 ]
+
+
+
+function canvasFromGraph(
+  graph: WorkflowGraph,
+): {
+  nodes: Node<StudioNodeData>[]
+  edges: Edge[]
+} {
+  const outgoing =
+    new Map<string, string[]>()
+
+  for (const node of graph.nodes) {
+    outgoing.set(node.id, [])
+  }
+
+  for (const edge of graph.edges) {
+    outgoing
+      .get(edge.source)
+      ?.push(edge.target)
+  }
+
+  const depth =
+    new Map<string, number>()
+
+  depth.set(
+    graph.start_node_id,
+    0,
+  )
+
+  const queue = [
+    graph.start_node_id,
+  ]
+
+  while (queue.length) {
+    const current =
+      queue.shift()!
+
+    const currentDepth =
+      depth.get(current) ?? 0
+
+    for (
+      const target
+      of outgoing.get(current) || []
+    ) {
+      if (depth.has(target)) {
+        continue
+      }
+
+      depth.set(
+        target,
+        currentDepth + 1,
+      )
+
+      queue.push(target)
+    }
+  }
+
+  const groups =
+    new Map<
+      number,
+      WorkflowGraph['nodes']
+    >()
+
+  for (const node of graph.nodes) {
+    const level =
+      depth.get(node.id) ?? 0
+
+    const group =
+      groups.get(level) || []
+
+    group.push(node)
+    groups.set(level, group)
+  }
+
+  const nodes:
+    Node<StudioNodeData>[] =
+    graph.nodes.map((node) => {
+      const level =
+        depth.get(node.id) ?? 0
+
+      const group =
+        groups.get(level) || [node]
+
+      const index =
+        group.findIndex(
+          (item) =>
+            item.id === node.id,
+        )
+
+      const x =
+        500
+        + (
+          index
+          - (group.length - 1) / 2
+        ) * 300
+
+      const y =
+        40 + level * 180
+
+      let data: StudioNodeData
+
+      if (node.kind === 'action') {
+        data = {
+          kind: 'action',
+          title:
+            node.step?.name
+            || node.step?.type
+            || 'ACTION',
+          subtitle:
+            node.step
+              ? `${node.step.type} · ${node.step.id}`
+              : 'action',
+          step:
+            node.step || undefined,
+        }
+      } else if (
+        node.kind === 'condition'
+      ) {
+        data = {
+          kind: 'condition',
+          title: 'CONDITION',
+          expression:
+            node.expression,
+        }
+      } else if (
+        node.kind === 'loop'
+      ) {
+        data = {
+          kind: 'loop',
+          title: 'LOOP',
+          expression:
+            node.expression,
+          maxIterations:
+            node.max_iterations
+            ?? undefined,
+        }
+      } else if (
+        node.kind === 'start'
+      ) {
+        data = {
+          kind: 'start',
+          title: 'START',
+          subtitle:
+            'Início do workflow',
+        }
+      } else {
+        data = {
+          kind: 'end',
+          title: 'END',
+          subtitle:
+            'Fim do workflow',
+        }
+      }
+
+      return {
+        id: node.id,
+        type: 'studio',
+        deletable:
+          node.kind !== 'start'
+          && node.kind !== 'end',
+        position: {
+          x,
+          y,
+        },
+        data,
+      }
+    })
+
+  const edges: Edge[] =
+    graph.edges.map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      sourceHandle:
+        edge.branch,
+      label:
+        edge.branch === 'default'
+          ? undefined
+          : edge.branch,
+      markerEnd: {
+        type:
+          MarkerType.ArrowClosed,
+      },
+    }))
+
+  return {
+    nodes,
+    edges,
+  }
+}
 
 
 function graphFromCanvas(
@@ -906,6 +1112,55 @@ function App() {
   )
 
   const [
+    workflows,
+    setWorkflows,
+  ] = useState<Workflow[]>([])
+
+  const [
+    workflowListLoading,
+    setWorkflowListLoading,
+  ] = useState(false)
+
+  const [
+    workflowListError,
+    setWorkflowListError,
+  ] = useState('')
+
+  const [
+    selectedWorkflow,
+    setSelectedWorkflow,
+  ] = useState<Workflow | null>(
+    null,
+  )
+
+  const [
+    loadedVersion,
+    setLoadedVersion,
+  ] = useState<WorkflowVersion | null>(
+    null,
+  )
+
+  const [
+    workflowLoading,
+    setWorkflowLoading,
+  ] = useState(false)
+
+  const [
+    workflowLoadError,
+    setWorkflowLoadError,
+  ] = useState('')
+
+  const [
+    flowInstance,
+    setFlowInstance,
+  ] = useState<
+    ReactFlowInstance<
+      Node<StudioNodeData>,
+      Edge
+    > | null
+  >(null)
+
+  const [
     nodes,
     setNodes,
     onNodesChange,
@@ -921,6 +1176,102 @@ function App() {
     showValidation,
     setShowValidation,
   ] = useState(false)
+
+
+  const handleAuthenticated = useCallback(
+    async (
+      authenticatedSession: AuthSession,
+    ) => {
+      setSession(
+        authenticatedSession,
+      )
+
+      setWorkflowListLoading(true)
+      setWorkflowListError('')
+
+      try {
+        const rows =
+          await listWorkflows(
+            authenticatedSession.access_token,
+          )
+
+        setWorkflows(rows)
+      } catch (exc) {
+        setWorkflowListError(
+          exc instanceof Error
+            ? exc.message
+            : 'Falha ao carregar workflows',
+        )
+      } finally {
+        setWorkflowListLoading(false)
+      }
+    },
+    [],
+  )
+
+
+  const openWorkflow = useCallback(
+    async (
+      item: Workflow,
+    ) => {
+      if (!session) {
+        return
+      }
+
+      setSelectedWorkflow(item)
+      setWorkflowLoading(true)
+      setWorkflowLoadError('')
+
+      try {
+        const version =
+          await getWorkflowVersion(
+            session.access_token,
+            item.id,
+            item.current_version,
+          )
+
+        if (!version.graph) {
+          throw new Error(
+            'A versão atual não possui graph',
+          )
+        }
+
+        const canvas =
+          canvasFromGraph(
+            version.graph,
+          )
+
+        setNodes(canvas.nodes)
+        setEdges(canvas.edges)
+        setLoadedVersion(version)
+        setShowValidation(false)
+
+        window.setTimeout(
+          () => {
+            flowInstance?.fitView({
+              padding: 0.2,
+              duration: 300,
+            })
+          },
+          0,
+        )
+      } catch (exc) {
+        setWorkflowLoadError(
+          exc instanceof Error
+            ? exc.message
+            : 'Falha ao abrir workflow',
+        )
+      } finally {
+        setWorkflowLoading(false)
+      }
+    },
+    [
+      flowInstance,
+      session,
+      setEdges,
+      setNodes,
+    ],
+  )
 
 
   const graph = useMemo(
@@ -1118,7 +1469,9 @@ function App() {
   if (!session) {
     return (
       <Login
-        onAuthenticated={setSession}
+        onAuthenticated={
+          handleAuthenticated
+        }
       />
     )
   }
@@ -1171,6 +1524,111 @@ function App() {
 
       <main className="designer-layout">
         <aside className="palette">
+          <div className="workflow-browser">
+            <div className="workflow-browser__head">
+              <div>
+                <span>
+                  WORKFLOWS
+                </span>
+
+                <strong>
+                  Processos reais
+                </strong>
+              </div>
+
+              {!workflowListLoading
+                && !workflowListError
+                && (
+                  <small>
+                    {workflows.length}
+                  </small>
+                )}
+            </div>
+
+            {workflowListLoading && (
+              <div className="workflow-browser__message">
+                Carregando workflows...
+              </div>
+            )}
+
+            {workflowListError && (
+              <div
+                className={
+                  'workflow-browser__message workflow-browser__message--error'
+                }
+              >
+                {workflowListError}
+              </div>
+            )}
+
+            {!workflowListLoading
+              && !workflowListError
+              && workflows.length === 0
+              && (
+                <div className="workflow-browser__message">
+                  Nenhum workflow cadastrado.
+                </div>
+              )}
+
+            {!workflowListLoading
+              && !workflowListError
+              && workflows.length > 0
+              && (
+                <div className="workflow-browser__list">
+                  {workflows.map(
+                    (item) => (
+                      <button
+                        type="button"
+                        className={
+                          'workflow-row'
+                          + (
+                            selectedWorkflow?.id
+                            === item.id
+                              ? ' workflow-row--active'
+                              : ''
+                          )
+                        }
+                        key={item.id}
+                        title={item.id}
+                        disabled={
+                          workflowLoading
+                          && selectedWorkflow?.id
+                            === item.id
+                        }
+                        onClick={() => {
+                          void openWorkflow(
+                            item,
+                          )
+                        }}
+                      >
+                        <strong>
+                          {item.name}
+                        </strong>
+
+                        <small>
+                          {item.operation}
+                          {' · '}
+                          v{item.current_version}
+                          {' · '}
+                          rev. {item.revision}
+                        </small>
+                      </button>
+                    ),
+                  )}
+                </div>
+              )}
+
+            {workflowLoadError && (
+              <div
+                className={
+                  'workflow-browser__message workflow-browser__message--error'
+                }
+              >
+                {workflowLoadError}
+              </div>
+            )}
+          </div>
+
           <div className="palette-header">
             <span>
               COMPONENTES
@@ -1281,11 +1739,19 @@ function App() {
           <div className="canvas-toolbar">
             <div>
               <strong>
-                Canvas
+                {loadedVersion
+                  ? loadedVersion.name
+                  : 'Canvas'}
               </strong>
 
               <span>
-                Arraste nós e conecte os handles
+                {loadedVersion
+                  ? (
+                      `v${loadedVersion.version}`
+                      + ` · ${loadedVersion.status}`
+                      + ` · ${loadedVersion.operation}`
+                    )
+                  : 'Arraste nós e conecte os handles'}
               </span>
             </div>
 
@@ -1309,6 +1775,7 @@ function App() {
           <div className="canvas">
             <ReactFlow
               nodes={nodes}
+              onInit={setFlowInstance}
               edges={edges}
               nodeTypes={nodeTypes}
               onNodesChange={

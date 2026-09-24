@@ -581,3 +581,114 @@ button {
   color: #8a4e3b;
   font-size: 11px;
 }
+
+.workflow-browser {
+  margin-bottom: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e2e8e5;
+}
+
+.workflow-browser__head {
+  padding: 6px 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.workflow-browser__head > div {
+  min-width: 0;
+}
+
+.workflow-browser__head span {
+  display: block;
+  margin-bottom: 4px;
+  color: #8b9692;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 1.3px;
+}
+
+.workflow-browser__head strong {
+  display: block;
+  font-size: 15px;
+}
+
+.workflow-browser__head small {
+  min-width: 25px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #eef3f1;
+  color: #68756f;
+  text-align: center;
+  font-size: 9px;
+}
+
+.workflow-browser__list {
+  max-height: 230px;
+  overflow-y: auto;
+  display: grid;
+  gap: 6px;
+}
+
+.workflow-row {
+  padding: 9px 10px;
+  border: 1px solid #e0e7e4;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.workflow-row strong {
+  display: block;
+  overflow: hidden;
+  color: #2b3732;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-row small {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #87928d;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-browser__message {
+  padding: 10px;
+  border-radius: 7px;
+  background: #f3f6f5;
+  color: #718079;
+  font-size: 10px;
+}
+
+.workflow-browser__message--error {
+  background: #fbf2ef;
+  color: #8a4e3b;
+}
+
+.workflow-row {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workflow-row:hover {
+  border-color: #8db9a9;
+  background: #f5faf8;
+}
+
+.workflow-row--active {
+  border-color: #3c9474;
+  background: #edf7f3;
+  box-shadow:
+    inset 3px 0 0 #16795a;
+}
+
+.workflow-row:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
