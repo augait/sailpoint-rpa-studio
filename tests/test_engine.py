@@ -98,3 +98,102 @@ async def test_workflow_timeout(fake_browser, tmp_path, monkeypatch):
     )
     with pytest.raises(TimeoutError):
         await rpa.run()
+
+
+async def test_graph_executes_edge_order(
+    fake_browser,
+    tmp_path,
+    monkeypatch,
+):
+    from backend.app.rpa.graph import (
+        linear_graph_from_steps,
+    )
+
+    order = []
+    events = []
+
+    async def perform(
+        page,
+        step,
+        *args,
+    ):
+        order.append(step.id)
+
+    monkeypatch.setattr(
+        module,
+        "perform",
+        perform,
+    )
+
+    graph = linear_graph_from_steps(
+        [
+            {
+                "id": "graph_a",
+                "type": "wait",
+                "wait_ms": 1,
+            },
+            {
+                "id": "graph_b",
+                "type": "wait",
+                "wait_ms": 1,
+            },
+        ]
+    ).model_dump(
+        mode="json"
+    )
+
+    #
+    # Bagunça propositalmente a ordem física
+    # do array. As edges continuam:
+    #
+    # START -> graph_a -> graph_b -> END
+    #
+    graph["nodes"] = [
+        graph["nodes"][0],
+        graph["nodes"][2],
+        graph["nodes"][1],
+        graph["nodes"][3],
+    ]
+
+    rpa = Engine(
+        {
+            "application": {},
+            "timeout_seconds": 5,
+
+            #
+            # Se o Engine usar steps incorretamente,
+            # executaria "legacy".
+            #
+            "steps": [
+                {
+                    "id": "legacy",
+                    "type": "wait",
+                    "wait_ms": 1,
+                }
+            ],
+
+            "graph": graph,
+        },
+        {},
+        tmp_path,
+        lambda event, *a, **kw:
+            events.append(event),
+        lambda: False,
+    )
+
+    assert await rpa.run() == {}
+
+    assert order == [
+        "graph_a",
+        "graph_b",
+    ]
+
+    assert (
+        "ENGINE_GRAPH_MODE"
+        in events
+    )
+
+    assert (
+        "ENGINE_LEGACY_MODE"
+        not in events
+    )
