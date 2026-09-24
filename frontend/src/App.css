@@ -1622,3 +1622,49 @@ button {
   font-weight: 800;
   letter-spacing: 0.03em;
 }
+
+/* EDIT CONFLICT */
+
+.conflict-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 22px;
+  border-bottom: 1px solid #e7c1b6;
+  background: #fff6f3;
+  color: #823f31;
+}
+
+.conflict-banner > div {
+  display: grid;
+  gap: 3px;
+}
+
+.conflict-banner strong {
+  font-size: 12px;
+}
+
+.conflict-banner span {
+  font-size: 11px;
+}
+
+.conflict-banner button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #d7a99c;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #823f31;
+  cursor: pointer;
+}
+
+.conflict-banner button:hover:not(:disabled) {
+  background: #fff0ec;
+}
+
+.conflict-banner button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

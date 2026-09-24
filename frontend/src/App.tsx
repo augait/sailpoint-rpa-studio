@@ -39,6 +39,7 @@ import {
   executeWorkflow,
   getExecution,
   getExecutionLogs,
+  getWorkflow,
   getWorkflowVersion,
   listExecutions,
   listWorkflowVersions,
@@ -1434,6 +1435,17 @@ function App() {
 
 
   const [
+    saveConflict,
+    setSaveConflict,
+  ] = useState(false)
+
+  const [
+    conflictReloading,
+    setConflictReloading,
+  ] = useState(false)
+
+
+  const [
     isDirty,
     setIsDirty,
   ] = useState(false)
@@ -1757,6 +1769,7 @@ function App() {
         setSelectedNodeId(null)
         setShowValidation(false)
         setIsDirty(false)
+        setSaveConflict(false)
 
         window.setTimeout(
           () => {
@@ -1859,6 +1872,7 @@ function App() {
         setSelectedNodeId(null)
         setShowValidation(false)
         setIsDirty(false)
+        setSaveConflict(false)
         setVersionDialogOpen(false)
         setSaveMessage('')
         setSaveError('')
@@ -1986,6 +2000,93 @@ function App() {
   )
 
 
+  const reloadAfterConflict = useCallback(
+    async () => {
+      if (
+        !session
+        || !selectedWorkflow
+      ) {
+        return
+      }
+
+      setConflictReloading(true)
+      setSaveError('')
+
+      try {
+        const workflow =
+          await getWorkflow(
+            session.access_token,
+            selectedWorkflow.id,
+          )
+
+        const version =
+          await getWorkflowVersion(
+            session.access_token,
+            workflow.id,
+            workflow.current_version,
+          )
+
+        if (!version.graph) {
+          throw new Error(
+            'A versão atual não possui graph',
+          )
+        }
+
+        const canvas =
+          canvasFromGraph(
+            version.graph,
+          )
+
+        setSelectedWorkflow(workflow)
+        setLoadedVersion(version)
+        setNodes(canvas.nodes)
+        setEdges(canvas.edges)
+        setSelectedNodeId(null)
+
+        setIsDirty(false)
+        setShowValidation(false)
+        setSaveConflict(false)
+
+        setSaveMessage(
+          `Recarregado · v${workflow.current_version} · rev. ${workflow.revision}`,
+        )
+
+        const rows =
+          await listWorkflows(
+            session.access_token,
+          )
+
+        setWorkflows(rows)
+
+        window.setTimeout(
+          () => {
+            flowInstance?.fitView({
+              padding: 0.2,
+              duration: 300,
+            })
+          },
+          0,
+        )
+      } catch (exc) {
+        setSaveError(
+          exc instanceof Error
+            ? exc.message
+            : 'Falha ao recarregar workflow',
+        )
+      } finally {
+        setConflictReloading(false)
+      }
+    },
+    [
+      flowInstance,
+      selectedWorkflow,
+      session,
+      setEdges,
+      setNodes,
+    ],
+  )
+
+
   const handleSaveWorkflow = useCallback(
     async () => {
       if (
@@ -2031,6 +2132,7 @@ function App() {
         setSelectedWorkflow(saved)
         setLoadedVersion(version)
         setIsDirty(false)
+        setSaveConflict(false)
 
         const rows =
           await listWorkflows(
@@ -2043,11 +2145,20 @@ function App() {
           `Salvo · v${saved.current_version} · rev. ${saved.revision}`,
         )
       } catch (exc) {
-        setSaveError(
+        const message =
           exc instanceof Error
             ? exc.message
-            : 'Falha ao salvar workflow',
-        )
+            : 'Falha ao salvar workflow'
+
+        if (
+          message
+          === 'Workflow alterado por outro usuário; recarregue'
+        ) {
+          setSaveConflict(true)
+          setSaveError('')
+        } else {
+          setSaveError(message)
+        }
       } finally {
         setSaveLoading(false)
       }
@@ -2581,6 +2692,7 @@ function App() {
               || !selectedWorkflow
               || !loadedVersion
               || historicalView
+              || saveConflict
               || !isDirty
               || saveLoading
               || !['ADMIN', 'DEVELOPER'].includes(
@@ -2592,8 +2704,10 @@ function App() {
                 ? 'Selecione um workflow real'
                 : historicalView
                   ? 'Versões históricas são somente leitura'
-                  : !isDirty
-                    ? 'Nenhuma alteração para salvar'
+                  : saveConflict
+                    ? 'Recarregue o workflow antes de salvar novamente'
+                    : !isDirty
+                      ? 'Nenhuma alteração para salvar'
                     : !validation.ok
                       ? 'Corrija o grafo antes de salvar'
                       : 'Salvar versão atual'
@@ -2608,6 +2722,34 @@ function App() {
           </button>
         </div>
       </header>
+
+      {saveConflict && (
+        <div className="conflict-banner">
+          <div>
+            <strong>
+              ⚠ Conflito de edição
+            </strong>
+
+            <span>
+              Este workflow foi alterado por outro usuário
+              enquanto você estava editando.
+              Suas alterações locais não foram salvas.
+            </span>
+          </div>
+
+          <button
+            type="button"
+            disabled={conflictReloading}
+            onClick={() => {
+              void reloadAfterConflict()
+            }}
+          >
+            {conflictReloading
+              ? 'Recarregando...'
+              : 'Recarregar versão atual'}
+          </button>
+        </div>
+      )}
 
       {(saveMessage || saveError) && (
         <div
