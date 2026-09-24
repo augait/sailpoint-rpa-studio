@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import ValidationError
 from sqlalchemy import select, update
 
 from backend.app.core.database import get_db
@@ -9,12 +10,91 @@ from backend.app.models.entities import (
     WorkflowVersion,
     utcnow,
 )
-from backend.app.rpa.graph import linear_graph_from_steps
+from backend.app.rpa.graph import WorkflowGraph, linear_graph_from_steps
 from backend.app.schemas.contracts import WorkflowIn
 from backend.app.services.audit_service import audit
 
 
 router = APIRouter(prefix="/api/v1/workflows", tags=["Workflows"])
+
+
+class WorkflowWriteIn(WorkflowIn):
+    #
+    # Durante a transição da UI antiga, graph é opcional.
+    #
+    # Sem graph:
+    #   steps -> linear_graph_from_steps()
+    #
+    # Com graph:
+    #   o grafo enviado vira a fonte funcional da versão.
+    #
+    graph: dict | None = None
+
+
+def workflow_payload(
+    body: WorkflowWriteIn,
+) -> tuple[list[dict], dict]:
+    if body.graph is None:
+        steps = [
+            step.model_dump()
+            for step in body.steps
+        ]
+
+        graph = linear_graph_from_steps(
+            steps
+        ).model_dump(mode="json")
+
+        return steps, graph
+
+    try:
+        validated_graph = WorkflowGraph.model_validate(
+            body.graph
+        )
+
+    except ValidationError as exc:
+        #
+        # Não devolvemos o conteúdo completo do erro.
+        # O graph pode referenciar dados sensíveis.
+        #
+        raise HTTPException(
+            422,
+            "Graph inválido",
+        ) from exc
+
+    #
+    # Workflow.steps continua existindo temporariamente
+    # para compatibilidade com a UI da Fase 1.
+    #
+    # Para graph nativo, ele é DERIVADO dos ACTION nodes
+    # em vez de confiar em uma segunda fonte enviada pelo
+    # cliente.
+    #
+    steps = [
+        node.step.model_dump()
+        for node in validated_graph.nodes
+        if (
+            node.kind == "action"
+            and node.step is not None
+        )
+    ]
+
+    step_ids = [
+        step["id"]
+        for step in steps
+    ]
+
+    if len(step_ids) != len(set(step_ids)):
+        raise HTTPException(
+            422,
+            "IDs de etapas duplicados no graph",
+        )
+
+    return (
+        steps,
+        validated_graph.model_dump(
+            mode="json"
+        ),
+    )
 
 
 def current_version(db, workflow: Workflow, lock: bool = False) -> WorkflowVersion:
@@ -39,22 +119,15 @@ def current_version(db, workflow: Workflow, lock: bool = False) -> WorkflowVersi
 
 def apply_version_data(
     version: WorkflowVersion,
-    body: WorkflowIn,
+    body: WorkflowWriteIn,
+    steps: list[dict],
+    graph: dict,
 ):
     version.application_id = body.application_id
     version.name = body.name
     version.operation = body.operation
-
-    steps = [
-        step.model_dump()
-        for step in body.steps
-    ]
-
     version.steps = steps
-    version.graph = linear_graph_from_steps(
-        steps
-    ).model_dump(mode="json")
-
+    version.graph = graph
     version.timeout_seconds = body.timeout_seconds
 
 
@@ -122,7 +195,7 @@ def get_version(
 
 @router.post("", status_code=201)
 def create(
-    body: WorkflowIn,
+    body: WorkflowWriteIn,
     request: Request,
     user=Depends(roles("ADMIN", "DEVELOPER")),
     db=Depends(get_db),
@@ -130,8 +203,14 @@ def create(
     if not db.get(Application, body.application_id):
         raise HTTPException(404, "Aplicação não encontrada")
 
+    steps, graph = workflow_payload(body)
+
     record = Workflow(
-        **body.model_dump(exclude={"revision"}),
+        application_id=body.application_id,
+        name=body.name,
+        operation=body.operation,
+        steps=steps,
+        timeout_seconds=body.timeout_seconds,
         current_version=1,
     )
 
@@ -145,10 +224,8 @@ def create(
         application_id=record.application_id,
         name=record.name,
         operation=record.operation,
-        steps=record.steps,
-        graph=linear_graph_from_steps(
-            record.steps
-        ).model_dump(mode="json"),
+        steps=steps,
+        graph=graph,
         timeout_seconds=record.timeout_seconds,
         created_by=user.id,
     )
@@ -173,7 +250,7 @@ def create(
 @router.put("/{workflow_id}")
 def save(
     workflow_id: str,
-    body: WorkflowIn,
+    body: WorkflowWriteIn,
     request: Request,
     user=Depends(roles("ADMIN", "DEVELOPER")),
     db=Depends(get_db),
@@ -186,6 +263,8 @@ def save(
 
     if not db.get(Application, body.application_id):
         raise HTTPException(404, "Aplicação não encontrada")
+
+    steps, graph = workflow_payload(body)
 
     record = db.scalar(
         select(Workflow)
@@ -209,7 +288,12 @@ def save(
     # atualiza esse draft.
     #
     if version.status == "DRAFT":
-        apply_version_data(version, body)
+        apply_version_data(
+            version,
+            body,
+            steps,
+            graph,
+        )
 
     #
     # Uma versão publicada é imutável.
@@ -226,16 +310,8 @@ def save(
             application_id=body.application_id,
             name=body.name,
             operation=body.operation,
-            steps=[
-                step.model_dump()
-                for step in body.steps
-            ],
-            graph=linear_graph_from_steps(
-                [
-                    step.model_dump()
-                    for step in body.steps
-                ]
-            ).model_dump(mode="json"),
+            steps=steps,
+            graph=graph,
             timeout_seconds=body.timeout_seconds,
             created_by=user.id,
         )
@@ -266,7 +342,7 @@ def save(
     record.application_id = body.application_id
     record.name = body.name
     record.operation = body.operation
-    record.steps = [step.model_dump() for step in body.steps]
+    record.steps = steps
     record.timeout_seconds = body.timeout_seconds
 
     record.revision += 1

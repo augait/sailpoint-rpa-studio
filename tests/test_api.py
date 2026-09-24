@@ -446,3 +446,224 @@ def test_outbox_reconciler_retries_failed_event(
         assert event.attempts == 2
         assert event.last_error is None
         assert event.processed_at is not None
+
+
+def native_condition_graph():
+    return {
+        "start_node_id": "__start__",
+        "end_node_id": "__end__",
+        "nodes": [
+            {
+                "id": "__start__",
+                "kind": "start",
+            },
+            {
+                "id": "condition_department",
+                "kind": "condition",
+                "expression": '{{department}} == "IT"',
+            },
+            {
+                "id": "action_it",
+                "kind": "action",
+                "step": {
+                    "id": "it_path",
+                    "type": "wait",
+                    "wait_ms": 5,
+                },
+            },
+            {
+                "id": "action_other",
+                "kind": "action",
+                "step": {
+                    "id": "other_path",
+                    "type": "wait",
+                    "wait_ms": 5,
+                },
+            },
+            {
+                "id": "__end__",
+                "kind": "end",
+            },
+        ],
+        "edges": [
+            {
+                "id": "start-condition",
+                "source": "__start__",
+                "target": "condition_department",
+                "branch": "default",
+            },
+            {
+                "id": "condition-true",
+                "source": "condition_department",
+                "target": "action_it",
+                "branch": "true",
+            },
+            {
+                "id": "condition-false",
+                "source": "condition_department",
+                "target": "action_other",
+                "branch": "false",
+            },
+            {
+                "id": "it-end",
+                "source": "action_it",
+                "target": "__end__",
+                "branch": "default",
+            },
+            {
+                "id": "other-end",
+                "source": "action_other",
+                "target": "__end__",
+                "branch": "default",
+            },
+        ],
+    }
+
+
+def test_native_graph_persists_into_execution_snapshot(
+    client,
+    users,
+    monkeypatch,
+):
+    jobs = []
+
+    monkeypatch.setattr(
+        outbox_service,
+        "queue",
+        lambda: SimpleNamespace(
+            fetch_job=lambda job_id: None,
+            enqueue=lambda *args, **kwargs:
+                jobs.append((args, kwargs)),
+        ),
+    )
+
+    application = client.post(
+        "/api/v1/applications",
+        headers=users["ADMIN"],
+        json={
+            "name": "Native graph app",
+            "url": "http://127.0.0.1:18081",
+        },
+    )
+
+    assert application.status_code == 201
+
+    graph = native_condition_graph()
+
+    response = client.post(
+        "/api/v1/workflows",
+        headers=users["ADMIN"],
+        json={
+            "name": "Native condition workflow",
+            "application_id": application.json()["id"],
+
+            #
+            # Deliberadamente conflitante.
+            # Quando graph existe, steps NÃO deve ser
+            # uma segunda fonte de verdade.
+            #
+            "steps": [
+                {
+                    "id": "legacy_should_not_win",
+                    "type": "wait",
+                    "wait_ms": 5,
+                }
+            ],
+            "graph": graph,
+        },
+    )
+
+    assert response.status_code == 201, response.text
+
+    workflow = response.json()
+
+    assert sorted(
+        step["id"]
+        for step in workflow["steps"]
+    ) == [
+        "it_path",
+        "other_path",
+    ]
+
+    versions = client.get(
+        f"/api/v1/workflows/{workflow['id']}/versions",
+        headers=users["ADMIN"],
+    )
+
+    assert versions.status_code == 200
+
+    version = versions.json()[0]
+
+    assert version["graph"] is not None
+
+    condition_nodes = [
+        node
+        for node in version["graph"]["nodes"]
+        if node["kind"] == "condition"
+    ]
+
+    assert len(condition_nodes) == 1
+
+    assert (
+        condition_nodes[0]["expression"]
+        == '{{department}} == "IT"'
+    )
+
+    condition_edges = [
+        edge
+        for edge in version["graph"]["edges"]
+        if edge["source"] == "condition_department"
+    ]
+
+    assert {
+        edge["branch"]
+        for edge in condition_edges
+    } == {
+        "true",
+        "false",
+    }
+
+    execute = client.post(
+        f"/api/v1/workflows/{workflow['id']}/execute",
+        headers=users["ADMIN"],
+        json={
+            "input": {
+                "department": "IT",
+            }
+        },
+    )
+
+    assert execute.status_code == 202, execute.text
+    assert len(jobs) == 1
+
+    with Session() as db:
+        execution = db.get(
+            Execution,
+            execute.json()["id"],
+        )
+
+        snapshot_graph = execution.snapshot["graph"]
+
+        assert snapshot_graph is not None
+
+        snapshot_conditions = [
+            node
+            for node in snapshot_graph["nodes"]
+            if node["kind"] == "condition"
+        ]
+
+        assert len(snapshot_conditions) == 1
+
+        assert (
+            snapshot_conditions[0]["expression"]
+            == '{{department}} == "IT"'
+        )
+
+        assert {
+            edge["branch"]
+            for edge in snapshot_graph["edges"]
+            if edge["source"] == "condition_department"
+        } == {
+            "true",
+            "false",
+        }
