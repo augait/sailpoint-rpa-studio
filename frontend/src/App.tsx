@@ -34,6 +34,7 @@ import {
   listWorkflows,
   saveWorkflow,
   type AuthSession,
+  type Selector,
   type Workflow,
   type WorkflowGraph,
   type WorkflowVersion,
@@ -61,11 +62,7 @@ type ActionStep = {
   type: string
   name?: string
   enabled?: boolean
-  selectors?: Array<{
-    kind: string
-    value: string
-    name?: string | null
-  }>
+  selectors?: Selector[]
   value?: string
   url?: string
   output?: string
@@ -726,6 +723,225 @@ function graphFromCanvas(
 }
 
 
+
+const validActionTypes =
+  new Set([
+    'navigate',
+    'click',
+    'fill',
+    'wait',
+    'select',
+    'screenshot',
+    'extract_text',
+    'assert_text',
+    'check',
+    'press',
+    'hover',
+  ])
+
+
+const selectorActionTypes =
+  new Set([
+    'click',
+    'fill',
+    'select',
+    'extract_text',
+    'assert_text',
+    'check',
+    'press',
+    'hover',
+  ])
+
+
+const validSelectorKinds =
+  new Set([
+    'css',
+    'testid',
+    'role',
+    'label',
+    'placeholder',
+    'text',
+    'xpath',
+  ])
+
+
+const sensitiveSelector =
+  /password|passwd|secret|token|authorization|cookie|credential/i
+
+
+const variableReference =
+  /^{{\s*[A-Za-z_][A-Za-z0-9_.]*\s*}}$/
+
+
+function validateActionStep(
+  step: ActionStep,
+  nodeId: string,
+): string[] {
+  const errors: string[] = []
+
+  if (
+    !/^[A-Za-z0-9_-]{1,60}$/.test(
+      step.id,
+    )
+  ) {
+    errors.push(
+      `ACTION ${nodeId}: Step ID inválido`,
+    )
+  }
+
+  if (!validActionTypes.has(step.type)) {
+    errors.push(
+      `ACTION ${nodeId}: tipo inválido`,
+    )
+  }
+
+  if (
+    (step.name || '').length > 120
+  ) {
+    errors.push(
+      `ACTION ${nodeId}: nome excede 120 caracteres`,
+    )
+  }
+
+  const selectors =
+    step.selectors || []
+
+  if (selectors.length > 10) {
+    errors.push(
+      `ACTION ${nodeId}: máximo de 10 seletores`,
+    )
+  }
+
+  if (
+    selectorActionTypes.has(step.type)
+    && selectors.length === 0
+  ) {
+    errors.push(
+      `ACTION ${nodeId}: ${step.type} precisa de seletor`,
+    )
+  }
+
+  selectors.forEach(
+    (selector, index) => {
+      if (
+        !validSelectorKinds.has(
+          selector.kind,
+        )
+      ) {
+        errors.push(
+          `ACTION ${nodeId}: seletor ${index + 1} possui tipo inválido`,
+        )
+      }
+
+      if (
+        !selector.value.trim()
+        || selector.value.length > 1000
+      ) {
+        errors.push(
+          `ACTION ${nodeId}: seletor ${index + 1} inválido`,
+        )
+      }
+
+      if (
+        (selector.name || '').length
+        > 300
+      ) {
+        errors.push(
+          `ACTION ${nodeId}: nome do seletor ${index + 1} excede 300 caracteres`,
+        )
+      }
+    },
+  )
+
+  if (
+    step.type === 'navigate'
+    && !(step.url || '').trim()
+  ) {
+    errors.push(
+      `ACTION ${nodeId}: navigate precisa de URL`,
+    )
+  }
+
+  if (
+    (step.url || '').length > 2000
+  ) {
+    errors.push(
+      `ACTION ${nodeId}: URL excede 2000 caracteres`,
+    )
+  }
+
+  if (
+    (step.value || '').length > 10000
+  ) {
+    errors.push(
+      `ACTION ${nodeId}: value excede 10000 caracteres`,
+    )
+  }
+
+  const output =
+    step.output ?? 'result'
+
+  if (
+    !/^[A-Za-z_][A-Za-z0-9_]{0,59}$/.test(
+      output,
+    )
+  ) {
+    errors.push(
+      `ACTION ${nodeId}: output inválido`,
+    )
+  }
+
+  const timeout =
+    step.timeout_ms ?? 10000
+
+  if (
+    timeout < 200
+    || timeout > 60000
+  ) {
+    errors.push(
+      `ACTION ${nodeId}: timeout_ms precisa estar entre 200 e 60000`,
+    )
+  }
+
+  const wait =
+    step.wait_ms ?? 1000
+
+  if (
+    wait < 0
+    || wait > 30000
+  ) {
+    errors.push(
+      `ACTION ${nodeId}: wait_ms precisa estar entre 0 e 30000`,
+    )
+  }
+
+  const passwordTarget =
+    selectors.some(
+      (selector) =>
+        sensitiveSelector.test(
+          selector.value,
+        ),
+    )
+
+  if (
+    step.type === 'fill'
+    && (
+      step.secret
+      || passwordTarget
+    )
+    && !variableReference.test(
+      step.value || '',
+    )
+  ) {
+    errors.push(
+      `ACTION ${nodeId}: segredo precisa usar referência {{variavel}}`,
+    )
+  }
+
+  return errors
+}
+
+
 function validateGraph(
   graph: WorkflowGraphPayload,
 ): ValidationResult {
@@ -785,13 +1001,19 @@ function validateGraph(
     outgoing.set(node.id, [])
     incoming.set(node.id, [])
 
-    if (
-      node.kind === 'action'
-      && !node.step
-    ) {
-      errors.push(
-        `ACTION ${node.id} sem step`,
-      )
+    if (node.kind === 'action') {
+      if (!node.step) {
+        errors.push(
+          `ACTION ${node.id} sem step`,
+        )
+      } else {
+        errors.push(
+          ...validateActionStep(
+            node.step,
+            node.id,
+          ),
+        )
+      }
     }
 
     if (
@@ -1429,7 +1651,7 @@ function App() {
 
       setSaveMessage('')
       setSaveError('')
-      setShowValidation(false)
+      setShowValidation(true)
     },
     [
       selectedNodeId,
