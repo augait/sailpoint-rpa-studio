@@ -969,3 +969,149 @@ button {
 .inspector__remove:hover {
   background: #fff1ed;
 }
+
+/* EXECUTION DIALOG */
+
+.execution-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    rgb(18 27 24 / 45%);
+  backdrop-filter: blur(2px);
+}
+
+.execution-dialog {
+  width: min(620px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border: 1px solid #d8e0dc;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow:
+    0 24px 70px
+    rgb(20 35 30 / 20%);
+}
+
+.execution-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #e3e9e6;
+}
+
+.execution-dialog__head div {
+  display: grid;
+  gap: 4px;
+}
+
+.execution-dialog__head span {
+  color: #718079;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.execution-dialog__head strong {
+  font-size: 16px;
+}
+
+.execution-dialog__head button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #dce4e0;
+  border-radius: 7px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.execution-dialog__body {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.execution-dialog__body label {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.execution-dialog__body textarea {
+  width: 100%;
+  min-height: 190px;
+  padding: 12px;
+  resize: vertical;
+  border: 1px solid #d5dfda;
+  border-radius: 8px;
+  outline: none;
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.execution-dialog__body textarea:focus {
+  border-color: #4c9a7f;
+  box-shadow:
+    0 0 0 3px
+    rgb(48 137 105 / 10%);
+}
+
+.execution-dialog__body > small {
+  color: #75837d;
+  font-size: 11px;
+}
+
+.execution-dialog__error {
+  padding: 10px 12px;
+  border: 1px solid #ead4cb;
+  border-radius: 7px;
+  background: #fff7f4;
+  color: #914e39;
+  font-size: 12px;
+}
+
+.execution-dialog__result {
+  display: grid;
+  grid-template-columns:
+    max-content minmax(0, 1fr);
+  gap: 7px 12px;
+  padding: 12px;
+  border: 1px solid #d6e5de;
+  border-radius: 8px;
+  background: #f7fbf9;
+}
+
+.execution-dialog__result span {
+  color: #74827c;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.execution-dialog__result code {
+  overflow-wrap: anywhere;
+}
+
+.execution-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px 18px;
+  border-top: 1px solid #e3e9e6;
+}
+
+.execution-dialog__footer button {
+  min-height: 36px;
+  padding: 0 14px;
+}

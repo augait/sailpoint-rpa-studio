@@ -299,3 +299,108 @@ export async function saveWorkflow(
     },
   )
 }
+
+
+export type Execution = {
+  id: string
+  workflow_id: string
+  workflow_version_id: string | null
+  correlation_id: string
+  status: string
+  output: Record<string, unknown>
+  error: string | null
+  worker: string | null
+  cancel_requested: boolean
+  created_at: string
+  started_at: string | null
+  finished_at: string | null
+  duration: number | null
+  snapshot: Record<string, unknown>
+}
+
+
+export type ExecutionLog = {
+  id: number
+  execution_id: string
+  timestamp: string
+  step_id: string | null
+  event: string
+  details: Record<string, unknown>
+}
+
+
+export type ExecuteWorkflowInput = {
+  input: Record<string, unknown>
+  correlation_id?: string | null
+}
+
+
+export async function executeWorkflow(
+  token: string,
+  workflowId: string,
+  body: ExecuteWorkflowInput,
+): Promise<Execution> {
+  return api<Execution>(
+    `/workflows/${workflowId}/execute`,
+    {
+      method: 'POST',
+      token,
+      body,
+    },
+  )
+}
+
+
+export async function listExecutions(
+  token: string,
+  limit = 50,
+  offset = 0,
+): Promise<Execution[]> {
+  return api<Execution[]>(
+    `/executions?limit=${limit}&offset=${offset}`,
+    {
+      token,
+    },
+  )
+}
+
+
+export async function getExecution(
+  token: string,
+  executionId: string,
+): Promise<Execution> {
+  return api<Execution>(
+    `/executions/${executionId}`,
+    {
+      token,
+    },
+  )
+}
+
+
+export async function getExecutionLogs(
+  token: string,
+  executionId: string,
+  after = 0,
+): Promise<ExecutionLog[]> {
+  return api<ExecutionLog[]>(
+    `/executions/${executionId}/logs?after=${after}`,
+    {
+      token,
+    },
+  )
+}
+
+
+export async function cancelExecution(
+  token: string,
+  executionId: string,
+): Promise<Execution> {
+  return api<Execution>(
+    `/executions/${executionId}/cancel`,
+    {
+      method: 'POST',
+      token,
+    },
+  )
+}

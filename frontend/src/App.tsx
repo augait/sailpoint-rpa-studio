@@ -25,15 +25,18 @@ import {
 import '@xyflow/react/dist/style.css'
 import './App.css'
 import { Login } from './Login'
+import { ExecutionDialog } from './ExecutionDialog'
 import {
   NodeInspector,
   type InspectorNodeData,
 } from './NodeInspector'
 import {
+  executeWorkflow,
   getWorkflowVersion,
   listWorkflows,
   saveWorkflow,
   type AuthSession,
+  type Execution,
   type Selector,
   type Workflow,
   type WorkflowGraph,
@@ -1392,6 +1395,34 @@ function App() {
     setSaveError,
   ] = useState('')
 
+
+  const [
+    executionDialogOpen,
+    setExecutionDialogOpen,
+  ] = useState(false)
+
+  const [
+    executionInput,
+    setExecutionInput,
+  ] = useState('{}')
+
+  const [
+    executionLoading,
+    setExecutionLoading,
+  ] = useState(false)
+
+  const [
+    executionError,
+    setExecutionError,
+  ] = useState('')
+
+  const [
+    currentExecution,
+    setCurrentExecution,
+  ] = useState<Execution | null>(
+    null,
+  )
+
   const [
     flowInstance,
     setFlowInstance,
@@ -1624,6 +1655,63 @@ function App() {
       selectedWorkflow,
       session,
       validation.ok,
+    ],
+  )
+
+
+  const handleExecuteWorkflow = useCallback(
+    async () => {
+      if (
+        !session
+        || !selectedWorkflow
+      ) {
+        return
+      }
+
+      setExecutionLoading(true)
+      setExecutionError('')
+      setCurrentExecution(null)
+
+      try {
+        const parsed =
+          JSON.parse(executionInput)
+
+        if (
+          parsed === null
+          || Array.isArray(parsed)
+          || typeof parsed !== 'object'
+        ) {
+          throw new Error(
+            'O input precisa ser um objeto JSON',
+          )
+        }
+
+        const execution =
+          await executeWorkflow(
+            session.access_token,
+            selectedWorkflow.id,
+            {
+              input: parsed,
+            },
+          )
+
+        setCurrentExecution(
+          execution,
+        )
+      } catch (exc) {
+        setExecutionError(
+          exc instanceof Error
+            ? exc.message
+            : 'Falha ao iniciar execução',
+        )
+      } finally {
+        setExecutionLoading(false)
+      }
+    },
+    [
+      executionInput,
+      selectedWorkflow,
+      session,
     ],
   )
 
@@ -1870,6 +1958,36 @@ function App() {
         <div className="topbar-actions">
           <button
             type="button"
+            disabled={
+              !selectedWorkflow
+              || !loadedVersion
+              || !validation.ok
+              || ![
+                'ADMIN',
+                'DEVELOPER',
+                'OPERATOR',
+              ].includes(
+                session.role,
+              )
+            }
+            title={
+              !selectedWorkflow
+                ? 'Selecione um workflow'
+                : !validation.ok
+                  ? 'Corrija o workflow antes de executar'
+                  : 'Executar workflow'
+            }
+            onClick={() => {
+              setExecutionError('')
+              setCurrentExecution(null)
+              setExecutionDialogOpen(true)
+            }}
+          >
+            ▶ Executar
+          </button>
+
+          <button
+            type="button"
             onClick={() =>
               setShowValidation(true)
             }
@@ -1918,6 +2036,26 @@ function App() {
           {saveError || saveMessage}
         </div>
       )}
+
+      <ExecutionDialog
+        open={executionDialogOpen}
+        workflowName={
+          loadedVersion?.name
+          || selectedWorkflow?.name
+          || 'Workflow'
+        }
+        inputJson={executionInput}
+        loading={executionLoading}
+        error={executionError}
+        execution={currentExecution}
+        onInputChange={setExecutionInput}
+        onRun={() => {
+          void handleExecuteWorkflow()
+        }}
+        onClose={() =>
+          setExecutionDialogOpen(false)
+        }
+      />
 
       <main className="designer-layout">
         <aside className="palette">
