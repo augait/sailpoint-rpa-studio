@@ -418,3 +418,70 @@ export async function publishWorkflow(
     },
   )
 }
+
+
+export type Application = {
+  id: string
+  name: string
+  description: string
+  url: string
+  environment:
+    | 'DEV'
+    | 'HML'
+    | 'PRD'
+  browser:
+    | 'chromium'
+    | 'firefox'
+    | 'chrome'
+    | 'msedge'
+  headless: boolean
+  timeout_ms: number
+  tags: string[]
+  created_at: string
+}
+
+
+export type CreateApplicationInput = {
+  name: string
+  description: string
+  url: string
+  environment:
+    | 'DEV'
+    | 'HML'
+    | 'PRD'
+  browser:
+    | 'chromium'
+    | 'firefox'
+    | 'chrome'
+    | 'msedge'
+  headless: boolean
+  timeout_ms: number
+  tags: string[]
+}
+
+
+export async function listApplications(
+  token: string,
+): Promise<Application[]> {
+  return api<Application[]>(
+    '/applications',
+    {
+      token,
+    },
+  )
+}
+
+
+export async function createApplication(
+  token: string,
+  body: CreateApplicationInput,
+): Promise<Application> {
+  return api<Application>(
+    '/applications',
+    {
+      method: 'POST',
+      token,
+      body,
+    },
+  )
+}

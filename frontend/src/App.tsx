@@ -26,6 +26,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import './App.css'
 import { Login } from './Login'
+import { ApplicationsDialog } from './ApplicationsDialog'
 import { ExecutionDetail } from './ExecutionDetail'
 import { ExecutionDialog } from './ExecutionDialog'
 import { ExecutionHistory } from './ExecutionHistory'
@@ -36,17 +37,21 @@ import {
 } from './NodeInspector'
 import {
   cancelExecution,
+  createApplication,
   executeWorkflow,
   getExecution,
   getExecutionLogs,
   getWorkflow,
   getWorkflowVersion,
+  listApplications,
   listExecutions,
   listWorkflowVersions,
   listWorkflows,
   publishWorkflow,
   saveWorkflow,
+  type Application,
   type AuthSession,
+  type CreateApplicationInput,
   type Execution,
   type ExecutionLog,
   type Selector,
@@ -1388,6 +1393,32 @@ function App() {
     setVersionDialogOpen,
   ] = useState(false)
 
+
+  const [
+    applicationsOpen,
+    setApplicationsOpen,
+  ] = useState(false)
+
+  const [
+    applications,
+    setApplications,
+  ] = useState<Application[]>([])
+
+  const [
+    applicationsLoading,
+    setApplicationsLoading,
+  ] = useState(false)
+
+  const [
+    applicationCreating,
+    setApplicationCreating,
+  ] = useState(false)
+
+  const [
+    applicationError,
+    setApplicationError,
+  ] = useState('')
+
   const [
     versionList,
     setVersionList,
@@ -1821,6 +1852,81 @@ function App() {
     && selectedWorkflow
     && loadedVersion.version
       !== selectedWorkflow.current_version
+  )
+
+
+  const loadApplications = useCallback(
+    async () => {
+      if (!session) {
+        return
+      }
+
+      setApplicationsLoading(true)
+      setApplicationError('')
+
+      try {
+        const rows =
+          await listApplications(
+            session.access_token,
+          )
+
+        setApplications(rows)
+      } catch (exc) {
+        setApplicationError(
+          exc instanceof Error
+            ? exc.message
+            : 'Falha ao carregar aplicações',
+        )
+      } finally {
+        setApplicationsLoading(false)
+      }
+    },
+    [session],
+  )
+
+
+  const handleCreateApplication = useCallback(
+    async (
+      input: CreateApplicationInput,
+    ) => {
+      if (!session) {
+        return false
+      }
+
+      setApplicationCreating(true)
+      setApplicationError('')
+
+      try {
+        const created =
+          await createApplication(
+            session.access_token,
+            input,
+          )
+
+        setApplications(
+          (current) => [
+            created,
+            ...current.filter(
+              (item) =>
+                item.id !== created.id,
+            ),
+          ],
+        )
+
+        return true
+      } catch (exc) {
+        setApplicationError(
+          exc instanceof Error
+            ? exc.message
+            : 'Falha ao criar aplicação',
+        )
+
+        return false
+      } finally {
+        setApplicationCreating(false)
+      }
+    },
+    [session],
   )
 
 
@@ -2617,6 +2723,15 @@ function App() {
         <div className="topbar-actions">
           <button
             type="button"
+            onClick={() => {
+              setApplicationsOpen(true)
+              void loadApplications()
+            }}
+          >
+            Aplicações
+          </button>
+          <button
+            type="button"
             disabled={
               !selectedWorkflow
               || !loadedVersion
@@ -2762,6 +2877,26 @@ function App() {
           {saveError || saveMessage}
         </div>
       )}
+
+      <ApplicationsDialog
+        open={applicationsOpen}
+        loading={applicationsLoading}
+        creating={applicationCreating}
+        error={applicationError}
+        applications={applications}
+        canCreate={
+          ['ADMIN', 'DEVELOPER'].includes(
+            session.role,
+          )
+        }
+        onRefresh={() => {
+          void loadApplications()
+        }}
+        onCreate={handleCreateApplication}
+        onClose={() =>
+          setApplicationsOpen(false)
+        }
+      />
 
       <VersionDialog
         open={versionDialogOpen}

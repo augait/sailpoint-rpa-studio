@@ -1668,3 +1668,211 @@ button {
   cursor: not-allowed;
   opacity: 0.6;
 }
+
+/* APPLICATIONS */
+
+.applications-dialog {
+  width: min(820px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #d8e0dc;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow:
+    0 24px 70px
+    rgb(20 35 30 / 20%);
+}
+
+.applications-dialog__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #e4e9e7;
+  background: #fafcfb;
+}
+
+.applications-dialog__toolbar > span {
+  color: #6f7d77;
+  font-size: 11px;
+}
+
+.applications-dialog__toolbar > div {
+  display: flex;
+  gap: 7px;
+}
+
+.applications-dialog__toolbar button {
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.applications-dialog__error {
+  margin: 14px 16px 0;
+}
+
+.applications-dialog__body {
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.application-form {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-bottom: 1px solid #e2e8e5;
+  background: #f9fbfa;
+}
+
+.application-form__grid {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(160px, 0.45fr);
+  gap: 12px;
+}
+
+.application-form label {
+  display: grid;
+  gap: 6px;
+  color: #35443e;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.application-form__wide {
+  grid-column: 1 / -1;
+}
+
+.application-form input,
+.application-form select,
+.application-form textarea {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid #d4ddd9;
+  border-radius: 7px;
+  outline: none;
+  background: #ffffff;
+  color: #17201d;
+  font: inherit;
+}
+
+.application-form textarea {
+  resize: vertical;
+}
+
+.application-form input:focus,
+.application-form select:focus,
+.application-form textarea:focus {
+  border-color: #4c9a7f;
+  box-shadow:
+    0 0 0 3px
+    rgb(48 137 105 / 10%);
+}
+
+.application-form small {
+  color: #7b8883;
+  font-weight: 400;
+}
+
+.application-form__check {
+  display: flex !important;
+  align-items: center;
+  gap: 8px !important;
+}
+
+.application-form__check input {
+  width: auto;
+  min-height: auto;
+}
+
+.application-form__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.application-form__actions button {
+  min-height: 36px;
+  padding: 0 14px;
+}
+
+.application-row {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid #e0e6e3;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.application-row__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.application-row__head strong {
+  font-size: 13px;
+}
+
+.application-row p {
+  margin: 0;
+  color: #66756f;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.application-row__meta {
+  display: grid;
+  grid-template-columns:
+    70px minmax(0, 1fr);
+  gap: 5px 10px;
+  font-size: 10px;
+}
+
+.application-row__meta span {
+  color: #84908b;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.application-row__meta code,
+.application-row__meta strong {
+  overflow-wrap: anywhere;
+  font-size: 10px;
+}
+
+.application-row__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.application-row__tags span,
+.application-environment {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #edf3f0;
+  color: #557068;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.application-environment--dev {
+  color: #276c9d;
+}
+
+.application-environment--hml {
+  color: #8a6b20;
+}
+
+.application-environment--prd {
+  color: #177254;
+}
