@@ -1434,6 +1434,12 @@ function App() {
 
 
   const [
+    isDirty,
+    setIsDirty,
+  ] = useState(false)
+
+
+  const [
     executionDialogOpen,
     setExecutionDialogOpen,
   ] = useState(false)
@@ -1523,6 +1529,31 @@ function App() {
 
   const currentExecutionId =
     currentExecution?.id
+
+  useEffect(() => {
+    const handleBeforeUnload = (
+      event: BeforeUnloadEvent,
+    ) => {
+      if (!isDirty) {
+        return
+      }
+
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener(
+      'beforeunload',
+      handleBeforeUnload,
+    )
+
+    return () => {
+      window.removeEventListener(
+        'beforeunload',
+        handleBeforeUnload,
+      )
+    }
+  }, [isDirty])
 
   useEffect(() => {
     if (
@@ -1688,6 +1719,15 @@ function App() {
         return
       }
 
+      if (
+        isDirty
+        && !window.confirm(
+          'Existem alterações não salvas. Descartar e abrir outro workflow?',
+        )
+      ) {
+        return
+      }
+
       setSelectedWorkflow(item)
       setWorkflowLoading(true)
       setWorkflowLoadError('')
@@ -1716,6 +1756,7 @@ function App() {
         setLoadedVersion(version)
         setSelectedNodeId(null)
         setShowValidation(false)
+        setIsDirty(false)
 
         window.setTimeout(
           () => {
@@ -1738,6 +1779,7 @@ function App() {
     },
     [
       flowInstance,
+      isDirty,
       session,
       setEdges,
       setNodes,
@@ -1780,6 +1822,15 @@ function App() {
         return
       }
 
+      if (
+        isDirty
+        && !window.confirm(
+          'Existem alterações não salvas. Descartar e abrir outra versão?',
+        )
+      ) {
+        return
+      }
+
       setWorkflowLoading(true)
       setWorkflowLoadError('')
 
@@ -1807,6 +1858,7 @@ function App() {
         setLoadedVersion(version)
         setSelectedNodeId(null)
         setShowValidation(false)
+        setIsDirty(false)
         setVersionDialogOpen(false)
         setSaveMessage('')
         setSaveError('')
@@ -1832,6 +1884,7 @@ function App() {
     },
     [
       flowInstance,
+      isDirty,
       selectedWorkflow,
       session,
       setEdges,
@@ -1977,6 +2030,7 @@ function App() {
 
         setSelectedWorkflow(saved)
         setLoadedVersion(version)
+        setIsDirty(false)
 
         const rows =
           await listWorkflows(
@@ -2216,6 +2270,7 @@ function App() {
       setSaveMessage('')
       setSaveError('')
       setShowValidation(true)
+      setIsDirty(true)
     },
     [
       historicalView,
@@ -2301,6 +2356,8 @@ function App() {
         return
       }
 
+      setIsDirty(true)
+
       setEdges((currentEdges) =>
         addEdge(
           {
@@ -2382,6 +2439,8 @@ function App() {
           },
         }
       }
+
+      setIsDirty(true)
 
       setNodes((currentNodes) => [
         ...currentNodes,
@@ -2473,6 +2532,7 @@ function App() {
               !selectedWorkflow
               || !loadedVersion
               || historicalView
+              || isDirty
               || !validation.ok
               || ![
                 'ADMIN',
@@ -2487,9 +2547,11 @@ function App() {
                 ? 'Selecione um workflow'
                 : historicalView
                   ? 'Versões históricas são somente leitura'
-                  : !validation.ok
-                    ? 'Corrija o workflow antes de executar'
-                    : 'Executar workflow'
+                  : isDirty
+                    ? 'Salve as alterações antes de executar'
+                    : !validation.ok
+                      ? 'Corrija o workflow antes de executar'
+                      : 'Executar workflow'
             }
             onClick={() => {
               setExecutionError('')
@@ -2519,6 +2581,7 @@ function App() {
               || !selectedWorkflow
               || !loadedVersion
               || historicalView
+              || !isDirty
               || saveLoading
               || !['ADMIN', 'DEVELOPER'].includes(
                 session.role,
@@ -2529,9 +2592,11 @@ function App() {
                 ? 'Selecione um workflow real'
                 : historicalView
                   ? 'Versões históricas são somente leitura'
-                  : !validation.ok
-                    ? 'Corrija o grafo antes de salvar'
-                    : 'Salvar versão atual'
+                  : !isDirty
+                    ? 'Nenhuma alteração para salvar'
+                    : !validation.ok
+                      ? 'Corrija o grafo antes de salvar'
+                      : 'Salvar versão atual'
             }
             onClick={() => {
               void handleSaveWorkflow()
@@ -2567,7 +2632,8 @@ function App() {
         }
         versions={versionList}
         canPublish={
-          ['ADMIN', 'DEVELOPER'].includes(
+          !isDirty
+          && ['ADMIN', 'DEVELOPER'].includes(
             session.role,
           )
         }
@@ -2894,6 +2960,14 @@ function App() {
               </span>
             </div>
 
+            {isDirty
+              && !historicalView
+              && (
+                <span className="dirty-badge">
+                  ● Alterações não salvas
+                </span>
+              )}
+
             {historicalView
               && selectedWorkflow
               && loadedVersion
@@ -2939,12 +3013,44 @@ function App() {
               onInit={setFlowInstance}
               edges={edges}
               nodeTypes={nodeTypes}
-              onNodesChange={
-                onNodesChange
-              }
-              onEdgesChange={
-                onEdgesChange
-              }
+              onNodesChange={(changes) => {
+                if (
+                  !historicalView
+                  && changes.some(
+                    (change) =>
+                      [
+                        'add',
+                        'remove',
+                        'replace',
+                      ].includes(
+                        change.type,
+                      ),
+                  )
+                ) {
+                  setIsDirty(true)
+                }
+
+                onNodesChange(changes)
+              }}
+              onEdgesChange={(changes) => {
+                if (
+                  !historicalView
+                  && changes.some(
+                    (change) =>
+                      [
+                        'add',
+                        'remove',
+                        'replace',
+                      ].includes(
+                        change.type,
+                      ),
+                  )
+                ) {
+                  setIsDirty(true)
+                }
+
+                onEdgesChange(changes)
+              }}
               onConnect={onConnect}
               nodesDraggable={!historicalView}
               nodesConnectable={!historicalView}

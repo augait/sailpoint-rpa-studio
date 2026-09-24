@@ -1606,3 +1606,19 @@ button {
   cursor: not-allowed;
   opacity: 0.45;
 }
+
+/* UNSAVED CHANGES */
+
+.dirty-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 7px;
+  border: 1px solid #e5c980;
+  border-radius: 999px;
+  background: #fffaf0;
+  color: #82651d;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
