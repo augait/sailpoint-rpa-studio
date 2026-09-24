@@ -26,6 +26,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import './App.css'
 import { Login } from './Login'
+import { ExecutionDetail } from './ExecutionDetail'
 import { ExecutionDialog } from './ExecutionDialog'
 import { ExecutionHistory } from './ExecutionHistory'
 import {
@@ -1429,6 +1430,34 @@ function App() {
     setExecutionHistory,
   ] = useState<Execution[]>([])
 
+
+  const [
+    historyDetailOpen,
+    setHistoryDetailOpen,
+  ] = useState(false)
+
+  const [
+    historyDetailLoading,
+    setHistoryDetailLoading,
+  ] = useState(false)
+
+  const [
+    historyDetailError,
+    setHistoryDetailError,
+  ] = useState('')
+
+  const [
+    historyDetailExecution,
+    setHistoryDetailExecution,
+  ] = useState<Execution | null>(
+    null,
+  )
+
+  const [
+    historyDetailLogs,
+    setHistoryDetailLogs,
+  ] = useState<ExecutionLog[]>([])
+
   const [
     executionInput,
     setExecutionInput,
@@ -1775,6 +1804,57 @@ function App() {
       session,
       validation.ok,
     ],
+  )
+
+
+  const openExecutionHistoryDetail = useCallback(
+    async (
+      selected: Execution,
+    ) => {
+      if (!session) {
+        return
+      }
+
+      setHistoryOpen(false)
+      setHistoryDetailOpen(true)
+      setHistoryDetailLoading(true)
+      setHistoryDetailError('')
+      setHistoryDetailExecution(selected)
+      setHistoryDetailLogs([])
+
+      try {
+        const [
+          execution,
+          logs,
+        ] = await Promise.all([
+          getExecution(
+            session.access_token,
+            selected.id,
+          ),
+          getExecutionLogs(
+            session.access_token,
+            selected.id,
+          ),
+        ])
+
+        setHistoryDetailExecution(
+          execution,
+        )
+
+        setHistoryDetailLogs(
+          logs,
+        )
+      } catch (exc) {
+        setHistoryDetailError(
+          exc instanceof Error
+            ? exc.message
+            : 'Falha ao carregar execução',
+        )
+      } finally {
+        setHistoryDetailLoading(false)
+      }
+    },
+    [session],
   )
 
 
@@ -2248,8 +2328,29 @@ function App() {
         onRefresh={() => {
           void loadExecutionHistory()
         }}
+        onSelect={(execution) => {
+          void openExecutionHistoryDetail(
+            execution,
+          )
+        }}
         onClose={() =>
           setHistoryOpen(false)
+        }
+      />
+
+      <ExecutionDetail
+        open={historyDetailOpen}
+        loading={historyDetailLoading}
+        error={historyDetailError}
+        execution={historyDetailExecution}
+        logs={historyDetailLogs}
+        onBack={() => {
+          setHistoryDetailOpen(false)
+          setHistoryOpen(true)
+          void loadExecutionHistory()
+        }}
+        onClose={() =>
+          setHistoryDetailOpen(false)
         }
       />
 

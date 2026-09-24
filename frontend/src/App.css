@@ -1344,3 +1344,77 @@ button {
 .history-row__meta strong {
   font-size: 10px;
 }
+
+/* EXECUTION HISTORY DETAIL */
+
+.history-row {
+  width: 100%;
+  appearance: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-row:hover {
+  border-color: #a9cabc;
+  background: #f9fcfa;
+}
+
+.history-row:focus-visible {
+  outline: 2px solid #4c9a7f;
+  outline-offset: 2px;
+}
+
+.history-row__open {
+  color: #497c69;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.execution-detail {
+  width: min(720px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #d8e0dc;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow:
+    0 24px 70px
+    rgb(20 35 30 / 20%);
+}
+
+.execution-detail__body {
+  overflow: auto;
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.execution-detail__output {
+  overflow: hidden;
+  border: 1px solid #dce4e0;
+  border-radius: 8px;
+}
+
+.execution-detail__output > strong {
+  display: block;
+  padding: 9px 11px;
+  border-bottom: 1px solid #e2e8e5;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.execution-detail__output pre {
+  overflow: auto;
+  max-height: 240px;
+  margin: 0;
+  padding: 11px;
+  background: #f7f9f8;
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

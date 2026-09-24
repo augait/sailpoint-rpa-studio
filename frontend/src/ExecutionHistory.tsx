@@ -7,6 +7,7 @@ type ExecutionHistoryProps = {
   error: string
   executions: Execution[]
   onRefresh: () => void
+  onSelect: (execution: Execution) => void
   onClose: () => void
 }
 
@@ -36,6 +37,7 @@ export function ExecutionHistory({
   error,
   executions,
   onRefresh,
+  onSelect,
   onClose,
 }: ExecutionHistoryProps) {
   if (!open) {
@@ -105,9 +107,13 @@ export function ExecutionHistory({
 
           {executions.map(
             (execution) => (
-              <article
+              <button
+                type="button"
                 className="history-row"
                 key={execution.id}
+                onClick={() =>
+                  onSelect(execution)
+                }
               >
                 <div className="history-row__main">
                   <strong
@@ -152,7 +158,10 @@ export function ExecutionHistory({
                       : `${execution.duration.toFixed(3)}s`}
                   </strong>
                 </div>
-              </article>
+                <span className="history-row__open">
+                  Ver detalhes →
+                </span>
+              </button>
             ),
           )}
         </div>
