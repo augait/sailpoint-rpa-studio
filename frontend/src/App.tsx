@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useMemo,
   useState,
 } from 'react'
@@ -32,11 +33,14 @@ import {
 } from './NodeInspector'
 import {
   executeWorkflow,
+  getExecution,
+  getExecutionLogs,
   getWorkflowVersion,
   listWorkflows,
   saveWorkflow,
   type AuthSession,
   type Execution,
+  type ExecutionLog,
   type Selector,
   type Workflow,
   type WorkflowGraph,
@@ -1423,6 +1427,91 @@ function App() {
     null,
   )
 
+
+  const [
+    executionLogs,
+    setExecutionLogs,
+  ] = useState<ExecutionLog[]>([])
+
+  const currentExecutionId =
+    currentExecution?.id
+
+  useEffect(() => {
+    if (
+      !session
+      || !executionDialogOpen
+      || !currentExecutionId
+    ) {
+      return
+    }
+
+    let stopped = false
+    let timer:
+      number | undefined
+
+    const refresh = async () => {
+      try {
+        const [
+          execution,
+          logs,
+        ] = await Promise.all([
+          getExecution(
+            session.access_token,
+            currentExecutionId,
+          ),
+          getExecutionLogs(
+            session.access_token,
+            currentExecutionId,
+          ),
+        ])
+
+        if (stopped) {
+          return
+        }
+
+        setCurrentExecution(execution)
+        setExecutionLogs(logs)
+
+        const finished = [
+          'SUCCESS',
+          'FAILED',
+          'CANCELLED',
+        ].includes(
+          execution.status,
+        )
+
+        if (!finished) {
+          timer = window.setTimeout(
+            refresh,
+            700,
+          )
+        }
+      } catch (exc) {
+        if (!stopped) {
+          setExecutionError(
+            exc instanceof Error
+              ? `Falha ao acompanhar execução: ${exc.message}`
+              : 'Falha ao acompanhar execução',
+          )
+        }
+      }
+    }
+
+    void refresh()
+
+    return () => {
+      stopped = true
+
+      if (timer !== undefined) {
+        window.clearTimeout(timer)
+      }
+    }
+  }, [
+    currentExecutionId,
+    executionDialogOpen,
+    session,
+  ])
+
   const [
     flowInstance,
     setFlowInstance,
@@ -1671,6 +1760,7 @@ function App() {
       setExecutionLoading(true)
       setExecutionError('')
       setCurrentExecution(null)
+      setExecutionLogs([])
 
       try {
         const parsed =
@@ -1980,6 +2070,7 @@ function App() {
             onClick={() => {
               setExecutionError('')
               setCurrentExecution(null)
+              setExecutionLogs([])
               setExecutionDialogOpen(true)
             }}
           >
@@ -2048,6 +2139,7 @@ function App() {
         loading={executionLoading}
         error={executionError}
         execution={currentExecution}
+        logs={executionLogs}
         onInputChange={setExecutionInput}
         onRun={() => {
           void handleExecuteWorkflow()

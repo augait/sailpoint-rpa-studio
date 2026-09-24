@@ -1,4 +1,7 @@
-import type { Execution } from './api'
+import type {
+  Execution,
+  ExecutionLog,
+} from './api'
 
 
 type ExecutionDialogProps = {
@@ -8,9 +11,28 @@ type ExecutionDialogProps = {
   loading: boolean
   error: string
   execution: Execution | null
+  logs: ExecutionLog[]
   onInputChange: (value: string) => void
   onRun: () => void
   onClose: () => void
+}
+
+
+function formatTime(
+  value: string,
+) {
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return date.toLocaleTimeString(
+    'pt-BR',
+    {
+      hour12: false,
+    },
+  )
 }
 
 
@@ -21,6 +43,7 @@ export function ExecutionDialog({
   loading,
   error,
   execution,
+  logs,
   onInputChange,
   onRun,
   onClose,
@@ -28,6 +51,16 @@ export function ExecutionDialog({
   if (!open) {
     return null
   }
+
+  const active =
+    execution
+    && [
+      'PENDING',
+      'QUEUED',
+      'RUNNING',
+    ].includes(
+      execution.status,
+    )
 
   return (
     <div className="execution-overlay">
@@ -56,12 +89,13 @@ export function ExecutionDialog({
 
             <textarea
               value={inputJson}
+              disabled={Boolean(active)}
               onChange={(event) =>
                 onInputChange(
                   event.target.value,
                 )
               }
-              rows={10}
+              rows={8}
               spellCheck={false}
             />
           </label>
@@ -78,23 +112,102 @@ export function ExecutionDialog({
           )}
 
           {execution && (
-            <div className="execution-dialog__result">
-              <span>
-                EXECUTION ID
-              </span>
+            <>
+              <div className="execution-dialog__result">
+                <span>
+                  EXECUTION ID
+                </span>
 
-              <code>
-                {execution.id}
-              </code>
+                <code>
+                  {execution.id}
+                </code>
 
-              <span>
-                STATUS
-              </span>
+                <span>
+                  STATUS
+                </span>
 
-              <strong>
-                {execution.status}
-              </strong>
-            </div>
+                <strong
+                  className={
+                    `execution-status execution-status--${execution.status.toLowerCase()}`
+                  }
+                >
+                  {execution.status}
+                </strong>
+
+                {execution.duration !== null && (
+                  <>
+                    <span>
+                      DURAÇÃO
+                    </span>
+
+                    <strong>
+                      {execution.duration.toFixed(3)}s
+                    </strong>
+                  </>
+                )}
+              </div>
+
+              {execution.error && (
+                <div className="execution-dialog__error">
+                  {execution.error}
+                </div>
+              )}
+
+              <div className="execution-logs">
+                <div className="execution-logs__head">
+                  <strong>
+                    LOGS
+                  </strong>
+
+                  <span>
+                    {logs.length}
+                  </span>
+                </div>
+
+                {logs.length === 0 ? (
+                  <div className="execution-logs__empty">
+                    Aguardando eventos...
+                  </div>
+                ) : (
+                  <div className="execution-logs__list">
+                    {logs.map((log) => (
+                      <div
+                        className="execution-log"
+                        key={log.id}
+                      >
+                        <time>
+                          {formatTime(
+                            log.timestamp,
+                          )}
+                        </time>
+
+                        <strong>
+                          {log.event}
+                        </strong>
+
+                        {log.step_id && (
+                          <code>
+                            {log.step_id}
+                          </code>
+                        )}
+
+                        {Object.keys(
+                          log.details,
+                        ).length > 0 && (
+                          <pre>
+                            {JSON.stringify(
+                              log.details,
+                              null,
+                              2,
+                            )}
+                          </pre>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
 
@@ -109,12 +222,17 @@ export function ExecutionDialog({
           <button
             type="button"
             className="button-primary"
-            disabled={loading}
+            disabled={
+              loading
+              || Boolean(active)
+            }
             onClick={onRun}
           >
             {loading
               ? 'Executando...'
-              : '▶ Executar agora'}
+              : active
+                ? 'Em execução...'
+                : '▶ Executar agora'}
           </button>
         </footer>
       </section>
