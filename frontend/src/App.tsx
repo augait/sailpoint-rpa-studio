@@ -1761,6 +1761,85 @@ function App() {
   )
 
 
+  const historicalView = Boolean(
+    loadedVersion
+    && selectedWorkflow
+    && loadedVersion.version
+      !== selectedWorkflow.current_version
+  )
+
+
+  const openWorkflowVersion = useCallback(
+    async (
+      versionNumber: number,
+    ) => {
+      if (
+        !session
+        || !selectedWorkflow
+      ) {
+        return
+      }
+
+      setWorkflowLoading(true)
+      setWorkflowLoadError('')
+
+      try {
+        const version =
+          await getWorkflowVersion(
+            session.access_token,
+            selectedWorkflow.id,
+            versionNumber,
+          )
+
+        if (!version.graph) {
+          throw new Error(
+            'A versão selecionada não possui graph',
+          )
+        }
+
+        const canvas =
+          canvasFromGraph(
+            version.graph,
+          )
+
+        setNodes(canvas.nodes)
+        setEdges(canvas.edges)
+        setLoadedVersion(version)
+        setSelectedNodeId(null)
+        setShowValidation(false)
+        setVersionDialogOpen(false)
+        setSaveMessage('')
+        setSaveError('')
+
+        window.setTimeout(
+          () => {
+            flowInstance?.fitView({
+              padding: 0.2,
+              duration: 300,
+            })
+          },
+          0,
+        )
+      } catch (exc) {
+        setWorkflowLoadError(
+          exc instanceof Error
+            ? exc.message
+            : 'Falha ao abrir versão',
+        )
+      } finally {
+        setWorkflowLoading(false)
+      }
+    },
+    [
+      flowInstance,
+      selectedWorkflow,
+      session,
+      setEdges,
+      setNodes,
+    ],
+  )
+
+
   const loadVersions = useCallback(
     async () => {
       if (
@@ -2114,7 +2193,10 @@ function App() {
     (
       data: InspectorNodeData,
     ) => {
-      if (!selectedNodeId) {
+      if (
+        !selectedNodeId
+        || historicalView
+      ) {
         return
       }
 
@@ -2136,6 +2218,7 @@ function App() {
       setShowValidation(true)
     },
     [
+      historicalView,
       selectedNodeId,
       setNodes,
     ],
@@ -2144,6 +2227,10 @@ function App() {
 
   const onConnect = useCallback(
     (connection: Connection) => {
+      if (historicalView) {
+        return
+      }
+
       if (
         !connection.source
         || !connection.target
@@ -2237,6 +2324,7 @@ function App() {
     },
     [
       edges,
+      historicalView,
       nodes,
       setEdges,
     ],
@@ -2250,6 +2338,10 @@ function App() {
         | 'condition'
         | 'loop',
     ) => {
+      if (historicalView) {
+        return
+      }
+
       const suffix =
         crypto
           .randomUUID()
@@ -2314,7 +2406,10 @@ function App() {
 
       setShowValidation(false)
     },
-    [setNodes],
+    [
+      historicalView,
+      setNodes,
+    ],
   )
 
 
@@ -2377,6 +2472,7 @@ function App() {
             disabled={
               !selectedWorkflow
               || !loadedVersion
+              || historicalView
               || !validation.ok
               || ![
                 'ADMIN',
@@ -2389,9 +2485,11 @@ function App() {
             title={
               !selectedWorkflow
                 ? 'Selecione um workflow'
-                : !validation.ok
-                  ? 'Corrija o workflow antes de executar'
-                  : 'Executar workflow'
+                : historicalView
+                  ? 'Versões históricas são somente leitura'
+                  : !validation.ok
+                    ? 'Corrija o workflow antes de executar'
+                    : 'Executar workflow'
             }
             onClick={() => {
               setExecutionError('')
@@ -2420,6 +2518,7 @@ function App() {
               !validation.ok
               || !selectedWorkflow
               || !loadedVersion
+              || historicalView
               || saveLoading
               || !['ADMIN', 'DEVELOPER'].includes(
                 session.role,
@@ -2428,9 +2527,11 @@ function App() {
             title={
               !selectedWorkflow
                 ? 'Selecione um workflow real'
-                : !validation.ok
-                  ? 'Corrija o grafo antes de salvar'
-                  : 'Salvar versão atual'
+                : historicalView
+                  ? 'Versões históricas são somente leitura'
+                  : !validation.ok
+                    ? 'Corrija o grafo antes de salvar'
+                    : 'Salvar versão atual'
             }
             onClick={() => {
               void handleSaveWorkflow()
@@ -2481,6 +2582,11 @@ function App() {
           ) {
             void handlePublishWorkflow()
           }
+        }}
+        onSelect={(version) => {
+          void openWorkflowVersion(
+            version.version,
+          )
         }}
         onClose={() =>
           setVersionDialogOpen(false)
@@ -2672,6 +2778,7 @@ function App() {
           <button
             type="button"
             className="palette-item"
+            disabled={historicalView}
             onClick={() =>
               addNode('action')
             }
@@ -2691,6 +2798,7 @@ function App() {
           <button
             type="button"
             className="palette-item"
+            disabled={historicalView}
             onClick={() =>
               addNode('condition')
             }
@@ -2713,6 +2821,7 @@ function App() {
           <button
             type="button"
             className="palette-item"
+            disabled={historicalView}
             onClick={() =>
               addNode('loop')
             }
@@ -2785,6 +2894,28 @@ function App() {
               </span>
             </div>
 
+            {historicalView
+              && selectedWorkflow
+              && loadedVersion
+              && (
+                <div className="historical-view">
+                  <span>
+                    SOMENTE LEITURA · v{loadedVersion.version}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void openWorkflowVersion(
+                        selectedWorkflow.current_version,
+                      )
+                    }}
+                  >
+                    Voltar para v{selectedWorkflow.current_version}
+                  </button>
+                </div>
+              )}
+
             <div className="canvas-stats">
               <span>
                 {nodes.length} nós
@@ -2815,13 +2946,17 @@ function App() {
                 onEdgesChange
               }
               onConnect={onConnect}
+              nodesDraggable={!historicalView}
+              nodesConnectable={!historicalView}
               onNodeClick={(
                 _event,
                 node,
               ) => {
-                setSelectedNodeId(
-                  node.id,
-                )
+                if (!historicalView) {
+                  setSelectedNodeId(
+                    node.id,
+                  )
+                }
               }}
               onPaneClick={() => {
                 setSelectedNodeId(null)
@@ -2831,10 +2966,14 @@ function App() {
               snapGrid={[20, 20]}
               minZoom={0.35}
               maxZoom={1.8}
-              deleteKeyCode={[
-                'Backspace',
-                'Delete',
-              ]}
+              deleteKeyCode={
+                historicalView
+                  ? null
+                  : [
+                      'Backspace',
+                      'Delete',
+                    ]
+              }
             >
               <Background
                 gap={20}

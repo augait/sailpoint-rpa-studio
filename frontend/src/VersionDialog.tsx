@@ -13,6 +13,7 @@ type VersionDialogProps = {
   canPublish: boolean
   onRefresh: () => void
   onPublish: () => void
+  onSelect: (version: WorkflowVersion) => void
   onClose: () => void
 }
 
@@ -50,6 +51,7 @@ export function VersionDialog({
   canPublish,
   onRefresh,
   onPublish,
+  onSelect,
   onClose,
 }: VersionDialogProps) {
   if (!open) {
@@ -160,13 +162,17 @@ export function VersionDialog({
 
           {versions.map(
             (version) => (
-              <article
+              <button
+                type="button"
                 className={
                   version.version === currentVersion
                     ? 'version-row version-row--current'
                     : 'version-row'
                 }
                 key={version.id}
+                onClick={() =>
+                  onSelect(version)
+                }
               >
                 <div className="version-row__head">
                   <div>
@@ -229,7 +235,10 @@ export function VersionDialog({
                     )}
                   </strong>
                 </div>
-              </article>
+                <span className="version-row__open">
+                  Abrir no canvas →
+                </span>
+              </button>
             ),
           )}
         </div>

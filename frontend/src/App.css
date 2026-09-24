@@ -1545,3 +1545,64 @@ button {
   overflow-wrap: anywhere;
   font-size: 10px;
 }
+
+/* HISTORICAL VERSION VIEW */
+
+.version-row {
+  width: 100%;
+  appearance: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.version-row:hover {
+  border-color: #a9cabc;
+  background: #f9fcfa;
+}
+
+.version-row:focus-visible {
+  outline: 2px solid #4c9a7f;
+  outline-offset: 2px;
+}
+
+.version-row__open {
+  color: #497c69;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.historical-view {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 7px;
+  border: 1px solid #e1c77d;
+  border-radius: 7px;
+  background: #fffaf0;
+}
+
+.historical-view span {
+  color: #80631e;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.historical-view button {
+  min-height: 26px;
+  padding: 0 7px;
+  border: 1px solid #ddc16e;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #725a1c;
+  cursor: pointer;
+  font-size: 9px;
+}
+
+.palette-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
