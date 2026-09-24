@@ -817,3 +817,57 @@ dialog h2 {
     grid-column: auto;
   }
 }
+
+/* Phase 2 · workflow versioning */
+
+.badge.DRAFT {
+  background: #fff5e0;
+  color: #9b7427;
+}
+
+.badge.PUBLISHED {
+  background: #e9f6ed;
+  color: #258353;
+}
+
+.badge.ARCHIVED {
+  background: #eef0f2;
+  color: #69747c;
+}
+
+.badge.UNKNOWN {
+  background: #f1f1f1;
+  color: #777;
+}
+
+.version-list {
+  display: grid;
+  gap: 10px;
+}
+
+.version-row {
+  display: grid;
+  grid-template-columns: 1fr auto 180px;
+  align-items: center;
+  gap: 18px;
+  padding: 15px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fafcfb;
+}
+
+.version-row b {
+  font-size: 14px;
+}
+
+.version-row small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.version-date {
+  text-align: right;
+  color: var(--muted);
+  font-size: 11px;
+}

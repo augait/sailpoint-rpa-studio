@@ -113,13 +113,63 @@ function applicationForm() {
 }
 async function workflows() {
   const rows = await api("/workflows");
+
+  const enriched = await Promise.all(
+    rows.map(async (workflow) => {
+      const versions = await api(`/workflows/${workflow.id}/versions`);
+      const current =
+        versions.find((v) => v.version === workflow.current_version) || null;
+
+      return {
+        ...workflow,
+        version_status: current?.status || "UNKNOWN",
+      };
+    }),
+  );
+
   view.innerHTML =
     head(
       "Workflows",
-      "Desenhe o processo, revise as etapas e teste com dados fictícios.",
+      "Desenhe, publique e mantenha versões imutáveis dos seus processos.",
       canEdit() ? button("+ Novo workflow", "new-workflow", "", "primary") : "",
     ) +
-    `<section class="panel">${rows.length ? `<table><thead><tr><th>PROCESSO</th><th>OPERAÇÃO</th><th>ETAPAS</th><th>REVISÃO</th><th></th></tr></thead><tbody>${rows.map((r) => `<tr><td><b>${esc(r.name)}</b></td><td><span class="badge">${esc(r.operation)}</span></td><td>${r.steps.length}</td><td>${r.revision}</td><td>${button("Abrir designer", "edit-workflow", r.id)}</td></tr>`).join("")}</tbody></table>` : empty("Um processo, várias possibilidades", "Comece adicionando uma aplicação e um workflow.")}</section>`;
+    `<section class="panel">${
+      enriched.length
+        ? `<table>
+            <thead>
+              <tr>
+                <th>PROCESSO</th>
+                <th>OPERAÇÃO</th>
+                <th>ETAPAS</th>
+                <th>VERSÃO</th>
+                <th>STATUS</th>
+                <th>REVISÃO</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${enriched
+                .map(
+                  (r) => `
+                    <tr>
+                      <td><b>${esc(r.name)}</b></td>
+                      <td><span class="badge">${esc(r.operation)}</span></td>
+                      <td>${r.steps.length}</td>
+                      <td>v${r.current_version}</td>
+                      <td><span class="badge ${esc(r.version_status)}">${esc(r.version_status)}</span></td>
+                      <td>${r.revision}</td>
+                      <td>${button("Abrir designer", "edit-workflow", r.id)}</td>
+                    </tr>
+                  `,
+                )
+                .join("")}
+            </tbody>
+          </table>`
+        : empty(
+            "Um processo, várias possibilidades",
+            "Comece adicionando uma aplicação e um workflow.",
+          )
+    }</section>`;
 }
 async function designer(id) {
   const apps = await api("/applications");
@@ -127,6 +177,7 @@ async function designer(id) {
     toast("Cadastre uma aplicação primeiro.");
     return navigate("applications");
   }
+
   workflow = id
     ? await api("/workflows/" + id)
     : {
@@ -135,14 +186,49 @@ async function designer(id) {
         operation: "CREATE_ACCOUNT",
         timeout_seconds: 600,
         steps: [],
+        current_version: 1,
       };
+
+  let versionStatus = "DRAFT";
+
+  if (workflow.id) {
+    const versions = await api(`/workflows/${workflow.id}/versions`);
+    const current = versions.find(
+      (v) => v.version === workflow.current_version,
+    );
+    versionStatus = current?.status || "UNKNOWN";
+  }
+
+  workflow.version_status = versionStatus;
+
   page = "designer";
   clearInterval(poll);
+
+  const versionActions = workflow.id
+    ? `${button("Histórico", "workflow-history", workflow.id)}
+       ${
+         canEdit() && versionStatus === "DRAFT"
+           ? button("Publicar", "publish-workflow", workflow.id, "secondary")
+           : ""
+       }`
+    : "";
+
   view.innerHTML =
     head(
       "Workflow designer",
-      "Editor sequencial · alterações só entram em vigor após salvar.",
-      `${button("← Voltar", "nav", "workflows")}${canEdit() ? button("Salvar workflow", "save-workflow", "", "primary") : ""}${canRun() ? button("Executar teste", "run-workflow", "", "secondary") : ""}`,
+      `v${workflow.current_version || 1} · ${versionStatus} · alterações entram em vigor após salvar.`,
+      `${button("← Voltar", "nav", "workflows")}
+       ${versionActions}
+       ${
+         canEdit()
+           ? button("Salvar workflow", "save-workflow", "", "primary")
+           : ""
+       }
+       ${
+         canRun()
+           ? button("Executar teste", "run-workflow", "", "secondary")
+           : ""
+       }`,
     ) +
     `<div class="workflow-meta form-grid"><label>Nome do processo<input id="wf-name" value="${esc(workflow.name)}"></label><label>Aplicação<select id="wf-app">${apps.map((a) => `<option value="${a.id}" ${a.id === workflow.application_id ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select></label><label>Operação IAM<input id="wf-operation" value="${esc(workflow.operation)}"></label><label>Timeout total (segundos)<input id="wf-timeout" type="number" min="5" max="3600" value="${workflow.timeout_seconds}"></label></div><div class="designer"><section class="panel palette"><div class="panel-head"><h2>Ações</h2></div><div class="panel-body">${actions.map((a, i) => button(`${String(i + 1).padStart(2, "0")} · ${labels[a]}`, "add-step", a)).join("")}<hr>${button("◉ Abrir Recorder", "recorder")}${button("↥ Importar gravação", "import")}<input id="import-file" type="file" accept="application/json" hidden></div></section><section><div class="step-list"><div class="start-end">● START</div><div id="steps"></div><div class="start-end">● END</div></div><p class="hint">Variáveis: {{username}}, {{email}}, {{password}}. Senhas devem ser fornecidas na execução. Fallbacks são tentados na ordem configurada.</p></section></div>`;
   renderSteps();
@@ -219,6 +305,61 @@ function stepForm(index, type) {
 function selectorRow(s) {
   return `<div class="selector-row form-grid"><label>Tipo<select>${["css", "testid", "role", "label", "placeholder", "text", "xpath"].map((k) => `<option ${s.kind === k ? "selected" : ""}>${k}</option>`).join("")}</select></label><label>Valor<input data-selector-value value="${esc(s.value)}" required></label><label>Nome acessível (somente role)<input data-selector-name value="${esc(s.name || "")}"></label><div>${button("Remover", "selector-remove")}</div></div>`;
 }
+async function workflowHistory(id) {
+  const versions = await api(`/workflows/${id}/versions`);
+
+  modal(
+    `<h2>Histórico de versões</h2>
+     <p class="hint">Versões publicadas são imutáveis. Uma nova edição após publicação cria automaticamente um novo DRAFT.</p>
+     <div class="version-list">
+       ${versions
+         .map(
+           (v) => `
+             <div class="version-row">
+               <div>
+                 <b>v${v.version}</b>
+                 <small>${esc(v.name)}</small>
+               </div>
+               <span class="badge ${esc(v.status)}">${esc(v.status)}</span>
+               <div class="version-date">
+                 ${
+                   v.published_at
+                     ? `Publicado ${time(v.published_at)}`
+                     : `Criado ${time(v.created_at)}`
+                 }
+               </div>
+             </div>
+           `,
+         )
+         .join("")}
+     </div>`,
+  );
+}
+
+
+async function publishWorkflow() {
+  if (!workflow?.id) {
+    throw Error("Salve o workflow antes de publicar.");
+  }
+
+  if (!canEdit()) {
+    throw Error("Seu perfil não permite publicar.");
+  }
+
+  await saveWorkflow();
+
+  const published = await api(
+    `/workflows/${workflow.id}/publish`,
+    "POST",
+    {},
+  );
+
+  toast(`Workflow v${published.version} publicado.`);
+
+  await designer(workflow.id);
+}
+
+
 async function saveWorkflow() {
   if (!canEdit()) throw Error("Seu perfil não permite editar.");
   const body = {
@@ -234,7 +375,14 @@ async function saveWorkflow() {
     workflow.id ? "PUT" : "POST",
     body,
   );
-  toast("Workflow salvo · revisão " + workflow.revision);
+  toast(
+    `Workflow salvo · v${workflow.current_version || 1} · revisão ${workflow.revision}`,
+  );
+
+  if (workflow.id && page === "designer") {
+    await designer(workflow.id);
+  }
+
   return workflow;
 }
 async function runForm() {
@@ -449,6 +597,10 @@ bind(document, "click", async (e) => {
     }
     case "save-workflow":
       return saveWorkflow();
+    case "publish-workflow":
+      return publishWorkflow();
+    case "workflow-history":
+      return workflowHistory(id);
     case "run-workflow":
       return runForm();
     case "execution":
