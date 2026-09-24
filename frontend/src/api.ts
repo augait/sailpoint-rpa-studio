@@ -273,3 +273,29 @@ export async function getWorkflowVersion(
     },
   )
 }
+
+
+export type SaveWorkflowInput = {
+  application_id: string
+  name: string
+  operation: string
+  timeout_seconds: number
+  revision: number
+  graph: WorkflowGraph
+}
+
+
+export async function saveWorkflow(
+  token: string,
+  workflowId: string,
+  body: SaveWorkflowInput,
+): Promise<Workflow> {
+  return api<Workflow>(
+    `/workflows/${workflowId}`,
+    {
+      method: 'PUT',
+      token,
+      body,
+    },
+  )
+}

@@ -692,3 +692,22 @@ button {
   cursor: wait;
   opacity: 0.65;
 }
+
+.save-banner {
+  padding: 8px 28px;
+  border-bottom: 1px solid;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.save-banner--ok {
+  border-color: #b9daca;
+  background: #eef8f3;
+  color: #25664f;
+}
+
+.save-banner--error {
+  border-color: #e3c7be;
+  background: #fbf2ef;
+  color: #8a4e3b;
+}

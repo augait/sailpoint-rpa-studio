@@ -28,6 +28,7 @@ import { Login } from './Login'
 import {
   getWorkflowVersion,
   listWorkflows,
+  saveWorkflow,
   type AuthSession,
   type Workflow,
   type WorkflowGraph,
@@ -1151,6 +1152,21 @@ function App() {
   ] = useState('')
 
   const [
+    saveLoading,
+    setSaveLoading,
+  ] = useState(false)
+
+  const [
+    saveMessage,
+    setSaveMessage,
+  ] = useState('')
+
+  const [
+    saveError,
+    setSaveError,
+  ] = useState('')
+
+  const [
     flowInstance,
     setFlowInstance,
   ] = useState<
@@ -1287,6 +1303,81 @@ function App() {
   const validation = useMemo(
     () => validateGraph(graph),
     [graph],
+  )
+
+
+  const handleSaveWorkflow = useCallback(
+    async () => {
+      if (
+        !session
+        || !selectedWorkflow
+        || !loadedVersion
+        || !validation.ok
+      ) {
+        return
+      }
+
+      setSaveLoading(true)
+      setSaveMessage('')
+      setSaveError('')
+
+      try {
+        const saved =
+          await saveWorkflow(
+            session.access_token,
+            selectedWorkflow.id,
+            {
+              application_id:
+                selectedWorkflow.application_id,
+              name:
+                loadedVersion.name,
+              operation:
+                loadedVersion.operation,
+              timeout_seconds:
+                loadedVersion.timeout_seconds,
+              revision:
+                selectedWorkflow.revision,
+              graph: graph as WorkflowGraph,
+            },
+          )
+
+        const version =
+          await getWorkflowVersion(
+            session.access_token,
+            saved.id,
+            saved.current_version,
+          )
+
+        setSelectedWorkflow(saved)
+        setLoadedVersion(version)
+
+        const rows =
+          await listWorkflows(
+            session.access_token,
+          )
+
+        setWorkflows(rows)
+
+        setSaveMessage(
+          `Salvo · v${saved.current_version} · rev. ${saved.revision}`,
+        )
+      } catch (exc) {
+        setSaveError(
+          exc instanceof Error
+            ? exc.message
+            : 'Falha ao salvar workflow',
+        )
+      } finally {
+        setSaveLoading(false)
+      }
+    },
+    [
+      graph,
+      loadedVersion,
+      selectedWorkflow,
+      session,
+      validation.ok,
+    ],
   )
 
 
@@ -1510,17 +1601,44 @@ function App() {
           <button
             type="button"
             className="button-primary"
-            disabled={!validation.ok}
-            title={
-              validation.ok
-                ? 'Contrato válido'
-                : 'Corrija o grafo antes de salvar'
+            disabled={
+              !validation.ok
+              || !selectedWorkflow
+              || !loadedVersion
+              || saveLoading
+              || !['ADMIN', 'DEVELOPER'].includes(
+                session.role,
+              )
             }
+            title={
+              !selectedWorkflow
+                ? 'Selecione um workflow real'
+                : !validation.ok
+                  ? 'Corrija o grafo antes de salvar'
+                  : 'Salvar versão atual'
+            }
+            onClick={() => {
+              void handleSaveWorkflow()
+            }}
           >
-            Salvar workflow
+            {saveLoading
+              ? 'Salvando...'
+              : 'Salvar workflow'}
           </button>
         </div>
       </header>
+
+      {(saveMessage || saveError) && (
+        <div
+          className={
+            saveError
+              ? 'save-banner save-banner--error'
+              : 'save-banner save-banner--ok'
+          }
+        >
+          {saveError || saveMessage}
+        </div>
+      )}
 
       <main className="designer-layout">
         <aside className="palette">
