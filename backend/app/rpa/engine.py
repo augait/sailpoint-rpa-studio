@@ -6,6 +6,7 @@ from urllib.parse import urlsplit
 from backend.app.core.security import SENSITIVE, mask, secret_values
 from backend.app.rpa.actions.basic import perform
 from backend.app.rpa.browser_manager import browser_session
+from backend.app.rpa.condition_engine import evaluate_condition
 from backend.app.rpa.graph import WorkflowGraph
 from backend.app.rpa.variable_engine import resolve
 from backend.app.schemas.contracts import Step
@@ -29,10 +30,12 @@ class Engine:
         cancelled,
     ):
         self.snapshot = snapshot
+
         self.variables = {
             **inputs,
             "application": snapshot["application"],
         }
+
         self.artifact_dir = artifact_dir
         self.emit = emit
         self.cancelled = cancelled
@@ -61,8 +64,6 @@ class Engine:
     ) -> None:
         filename = f"{step_id}.png"
 
-        # Mask form controls and text nodes containing input data.
-        # Restore afterwards.
         marks = await page.evaluate(
             """(values) => {
           const marked=[];
@@ -242,11 +243,9 @@ class Engine:
         current_id = graph.start_node_id
 
         #
-        # Proteção adicional contra traversal infinito.
-        #
-        # Nesta primeira versão do executor ainda não
-        # executamos LOOP, portanto um grafo suportado
-        # precisa terminar em no máximo nodes + edges.
+        # Enquanto LOOP ainda não é executável,
+        # qualquer fluxo suportado precisa terminar
+        # dentro deste limite.
         #
         max_transitions = (
             len(graph.nodes)
@@ -291,10 +290,43 @@ class Engine:
                 transitions += 1
                 continue
 
+            if node.kind == "condition":
+                #
+                # Usa o ID do nó como referência caso
+                # a avaliação da condição falhe.
+                #
+                self.step_id = node.id
+
+                result = evaluate_condition(
+                    node.expression,
+                    self.variables,
+                )
+
+                branch = (
+                    "true"
+                    if result
+                    else "false"
+                )
+
+                #
+                # Não registrar expression nem valores.
+                #
+                self.emit(
+                    "CONDITION_EVALUATED",
+                    node.id,
+                    result=result,
+                    branch=branch,
+                )
+
+                current_id = outgoing[
+                    node.id
+                ][branch]
+
+                transitions += 1
+                continue
+
             #
-            # CONDITION e LOOP entram nos próximos passos.
-            # Não fazemos fallback silencioso para impedir
-            # que um branch seja executado incorretamente.
+            # LOOP entra na próxima etapa.
             #
             raise GraphNodeNotSupported(
                 node.kind
@@ -333,10 +365,6 @@ class Engine:
                         )
 
                     else:
-                        #
-                        # Compatibilidade com snapshots
-                        # históricos anteriores à Fase 2.
-                        #
                         await self.run_legacy_steps(
                             page
                         )
@@ -348,9 +376,8 @@ class Engine:
 
             except Exception as exc:
                 #
-                # Never save exception messages:
-                # Playwright includes entered values
-                # in call logs.
+                # Nunca salvar exception message.
+                # Playwright pode incluir valores digitados.
                 #
                 parsed = urlsplit(
                     page.url
@@ -381,11 +408,6 @@ class Engine:
                         or "error",
                     )
 
-                    #
-                    # Diagnostic structure only;
-                    # omit text, attributes and
-                    # complete DOM snapshots.
-                    #
                     structure = await (
                         page.locator("body")
                         .evaluate(

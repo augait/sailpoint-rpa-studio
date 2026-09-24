@@ -197,3 +197,211 @@ async def test_graph_executes_edge_order(
         "ENGINE_LEGACY_MODE"
         not in events
     )
+
+
+def condition_graph():
+    return {
+        "start_node_id": "__start__",
+        "end_node_id": "__end__",
+        "nodes": [
+            {
+                "id": "__start__",
+                "kind": "start",
+            },
+            {
+                "id": "action_false",
+                "kind": "action",
+                "step": {
+                    "id": "false_action",
+                    "type": "wait",
+                    "wait_ms": 1,
+                },
+            },
+            {
+                "id": "condition_department",
+                "kind": "condition",
+                "expression": '{{department}} == "IT"',
+            },
+            {
+                "id": "__end__",
+                "kind": "end",
+            },
+            {
+                "id": "action_true",
+                "kind": "action",
+                "step": {
+                    "id": "true_action",
+                    "type": "wait",
+                    "wait_ms": 1,
+                },
+            },
+        ],
+        "edges": [
+            {
+                "id": "start-condition",
+                "source": "__start__",
+                "target": "condition_department",
+                "branch": "default",
+            },
+            {
+                "id": "condition-true",
+                "source": "condition_department",
+                "target": "action_true",
+                "branch": "true",
+            },
+            {
+                "id": "condition-false",
+                "source": "condition_department",
+                "target": "action_false",
+                "branch": "false",
+            },
+            {
+                "id": "true-end",
+                "source": "action_true",
+                "target": "__end__",
+                "branch": "default",
+            },
+            {
+                "id": "false-end",
+                "source": "action_false",
+                "target": "__end__",
+                "branch": "default",
+            },
+        ],
+    }
+
+
+async def test_graph_condition_true_branch(
+    fake_browser,
+    tmp_path,
+    monkeypatch,
+):
+    order = []
+    events = []
+
+    async def perform(
+        page,
+        step,
+        *args,
+    ):
+        order.append(step.id)
+
+    monkeypatch.setattr(
+        module,
+        "perform",
+        perform,
+    )
+
+    rpa = Engine(
+        {
+            "application": {},
+            "timeout_seconds": 5,
+            "steps": [],
+            "graph": condition_graph(),
+        },
+        {
+            "department": "IT",
+        },
+        tmp_path,
+        lambda event, step_id=None, **details:
+            events.append(
+                (
+                    event,
+                    step_id,
+                    details,
+                )
+            ),
+        lambda: False,
+    )
+
+    assert await rpa.run() == {}
+
+    assert order == [
+        "true_action",
+    ]
+
+    condition_events = [
+        event
+        for event in events
+        if event[0]
+        == "CONDITION_EVALUATED"
+    ]
+
+    assert condition_events == [
+        (
+            "CONDITION_EVALUATED",
+            "condition_department",
+            {
+                "result": True,
+                "branch": "true",
+            },
+        )
+    ]
+
+
+async def test_graph_condition_false_branch(
+    fake_browser,
+    tmp_path,
+    monkeypatch,
+):
+    order = []
+    events = []
+
+    async def perform(
+        page,
+        step,
+        *args,
+    ):
+        order.append(step.id)
+
+    monkeypatch.setattr(
+        module,
+        "perform",
+        perform,
+    )
+
+    rpa = Engine(
+        {
+            "application": {},
+            "timeout_seconds": 5,
+            "steps": [],
+            "graph": condition_graph(),
+        },
+        {
+            "department": "HR",
+        },
+        tmp_path,
+        lambda event, step_id=None, **details:
+            events.append(
+                (
+                    event,
+                    step_id,
+                    details,
+                )
+            ),
+        lambda: False,
+    )
+
+    assert await rpa.run() == {}
+
+    assert order == [
+        "false_action",
+    ]
+
+    condition_events = [
+        event
+        for event in events
+        if event[0]
+        == "CONDITION_EVALUATED"
+    ]
+
+    assert condition_events == [
+        (
+            "CONDITION_EVALUATED",
+            "condition_department",
+            {
+                "result": False,
+                "branch": "false",
+            },
+        )
+    ]
