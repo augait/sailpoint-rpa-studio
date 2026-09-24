@@ -321,3 +321,82 @@ def test_workflow_version_lifecycle(client, users):
 
     assert versions[1]["version"] == 1
     assert versions[1]["status"] == "ARCHIVED"
+
+
+def test_outbox_reconciler_retries_failed_event(
+    client,
+    users,
+    monkeypatch,
+):
+    class FailedQueue:
+        def fetch_job(self, job_id):
+            return None
+
+        def enqueue(self, *args, **kwargs):
+            raise ConnectionError("redis offline")
+
+    monkeypatch.setattr(
+        outbox_service,
+        "queue",
+        lambda: FailedQueue(),
+    )
+
+    wf = create_workflow(
+        client,
+        users["ADMIN"],
+    )
+
+    response = client.post(
+        f"/api/v1/workflows/{wf['id']}/execute",
+        headers=users["ADMIN"],
+        json={"input": {}},
+    )
+
+    assert response.status_code == 202
+
+    execution_id = response.json()["id"]
+
+    with Session() as db:
+        event = db.scalar(
+            __import__("sqlalchemy").select(OutboxEvent).where(
+                OutboxEvent.aggregate_id == execution_id
+            )
+        )
+
+        assert event.status == "FAILED"
+
+        # Libera imediatamente para o teste do reconciliador.
+        event.available_at = event.created_at
+        db.commit()
+
+    jobs = []
+
+    monkeypatch.setattr(
+        outbox_service,
+        "queue",
+        lambda: SimpleNamespace(
+            fetch_job=lambda job_id: None,
+            enqueue=lambda *args, **kwargs: jobs.append(
+                (args, kwargs)
+            ),
+        ),
+    )
+
+    result = outbox_service.dispatch_pending(limit=10)
+
+    assert result["selected"] == 1
+    assert result["sent"] == 1
+    assert result["failed"] == 0
+    assert len(jobs) == 1
+
+    with Session() as db:
+        event = db.scalar(
+            __import__("sqlalchemy").select(OutboxEvent).where(
+                OutboxEvent.aggregate_id == execution_id
+            )
+        )
+
+        assert event.status == "SENT"
+        assert event.attempts == 2
+        assert event.last_error is None
+        assert event.processed_at is not None
