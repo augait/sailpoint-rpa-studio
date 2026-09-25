@@ -27,6 +27,52 @@ class ApplicationIn(StrictModel):
         return value
 
 
+
+class CredentialIn(StrictModel):
+    name: str = Field(
+        min_length=1,
+        max_length=120,
+    )
+
+    description: str = Field(
+        default="",
+        max_length=2000,
+    )
+
+    values: dict[str, str] = Field(
+        min_length=1,
+        max_length=20,
+    )
+
+    @field_validator("values")
+    @classmethod
+    def valid_values(
+        cls,
+        values,
+    ):
+        pattern = re.compile(
+            r"^[A-Za-z_][A-Za-z0-9_]{0,59}$"
+        )
+
+        for key, value in values.items():
+            if not pattern.fullmatch(key):
+                raise ValueError(
+                    "Nome de campo de credencial inválido"
+                )
+
+            if not value:
+                raise ValueError(
+                    "Valor de credencial não pode ser vazio"
+                )
+
+            if len(value) > 10000:
+                raise ValueError(
+                    "Valor de credencial muito grande"
+                )
+
+        return values
+
+
 class Selector(StrictModel):
     kind: Literal["css", "testid", "role", "label", "placeholder", "text", "xpath"] = "css"
     value: str = Field(min_length=1, max_length=1000)

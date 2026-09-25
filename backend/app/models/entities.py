@@ -52,6 +52,66 @@ class Application(Base):
     )
 
 
+
+class ApplicationCredential(Base):
+    __tablename__ = "application_credentials"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "application_id",
+            "name",
+            name="uq_application_credentials_application_name",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=uid,
+    )
+
+    application_id: Mapped[str] = mapped_column(
+        ForeignKey("applications.id"),
+        index=True,
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(120),
+    )
+
+    description: Mapped[str] = mapped_column(
+        Text,
+        default="",
+    )
+
+    # JSON criptografado com Fernet.
+    # Nunca deve ser retornado pela API.
+    data_encrypted: Mapped[str] = mapped_column(
+        Text,
+    )
+
+    # Somente os NOMES dos campos podem ser exibidos.
+    # Ex.: ["username", "password"]
+    field_names: Mapped[list] = mapped_column(
+        JSON,
+        default=list,
+    )
+
+    created_by: Mapped[str] = mapped_column(
+        ForeignKey("users.id"),
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+    )
+
+
 class Workflow(Base):
     __tablename__ = "workflows"
 

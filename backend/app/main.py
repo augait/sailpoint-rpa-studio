@@ -6,7 +6,14 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from backend.app.api import applications, auth, executions, monitoring, workflows
+from backend.app.api import (
+    applications,
+    auth,
+    credentials,
+    executions,
+    monitoring,
+    workflows,
+)
 
 ROOT = Path(__file__).parent
 app = FastAPI(
@@ -17,6 +24,7 @@ app = FastAPI(
 for router in (
     auth.router,
     applications.router,
+    credentials.router,
     workflows.router,
     executions.router,
     monitoring.router,
