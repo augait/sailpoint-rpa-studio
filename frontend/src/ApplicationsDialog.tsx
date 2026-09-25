@@ -19,6 +19,9 @@ type ApplicationsDialogProps = {
   onCreate: (
     input: CreateApplicationInput,
   ) => Promise<boolean>
+  onCredentials: (
+    application: Application,
+  ) => void
   onClose: () => void
 }
 
@@ -51,6 +54,7 @@ export function ApplicationsDialog({
   canCreate,
   onRefresh,
   onCreate,
+  onCredentials,
   onClose,
 }: ApplicationsDialogProps) {
   const [
@@ -487,6 +491,19 @@ export function ApplicationsDialog({
                     )}
                   </div>
                 )}
+
+                <div className="application-row__actions">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onCredentials(
+                        application,
+                      )
+                    }
+                  >
+                    🔐 Credenciais
+                  </button>
+                </div>
               </article>
             ),
           )}

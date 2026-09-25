@@ -1876,3 +1876,262 @@ button {
 .application-environment--prd {
   color: #177254;
 }
+
+
+.application-row__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+
+.application-row__actions button {
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+/* CREDENTIALS DIALOG */
+
+.credentials-dialog {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #d8e0dc;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow:
+    0 24px 70px
+    rgb(20 35 30 / 20%);
+}
+
+.credentials-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #e4e9e7;
+  background: #fafcfb;
+}
+
+.credentials-toolbar > span {
+  color: #6f7d77;
+  font-size: 11px;
+}
+
+.credentials-toolbar > div {
+  display: flex;
+  gap: 7px;
+}
+
+.credentials-toolbar button {
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.credentials-error {
+  margin: 14px 16px 0;
+}
+
+.credentials-body {
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.credential-form {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-bottom: 1px solid #e2e8e5;
+  background: #f9fbfa;
+}
+
+.credential-form__header {
+  display: grid;
+  gap: 4px;
+}
+
+.credential-form__header strong {
+  font-size: 13px;
+}
+
+.credential-form__header small {
+  color: #7b8883;
+  font-size: 10px;
+}
+
+.credential-form label {
+  display: grid;
+  gap: 6px;
+  color: #35443e;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.credential-form input,
+.credential-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid #d4ddd9;
+  border-radius: 7px;
+  outline: none;
+  background: #ffffff;
+  color: #17201d;
+  font: inherit;
+}
+
+.credential-form textarea {
+  resize: vertical;
+}
+
+.credential-form input:focus,
+.credential-form textarea:focus {
+  border-color: #4c9a7f;
+  box-shadow:
+    0 0 0 3px
+    rgb(48 137 105 / 10%);
+}
+
+.credential-form label small {
+  color: #7b8883;
+  font-size: 9px;
+  font-weight: 400;
+}
+
+.credential-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.credential-fields__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.credential-fields__head strong {
+  font-size: 11px;
+}
+
+.credential-fields__head button {
+  min-height: 30px;
+  padding: 0 9px;
+}
+
+.credential-field {
+  display: grid;
+  grid-template-columns:
+    minmax(120px, 0.45fr)
+    minmax(0, 1fr)
+    32px;
+  gap: 7px;
+}
+
+.credential-field > button {
+  min-height: 36px;
+  padding: 0;
+  border: 1px solid #ead8d1;
+  border-radius: 6px;
+  background: #fff8f6;
+  color: #945b48;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.credential-field > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.credential-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.credential-form__actions button {
+  min-height: 34px;
+  padding: 0 12px;
+}
+
+.credential-row {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid #e0e6e3;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.credential-row__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.credential-row__head > div:first-child {
+  min-width: 0;
+}
+
+.credential-row__head strong {
+  font-size: 13px;
+}
+
+.credential-row__head p {
+  margin: 4px 0 0;
+  color: #66756f;
+  font-size: 10px;
+}
+
+.credential-row__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.credential-row__actions button {
+  min-height: 29px;
+  padding: 0 8px;
+}
+
+.credential-row__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.credential-row__fields code {
+  padding: 5px 7px;
+  border: 1px solid #dce6e1;
+  border-radius: 6px;
+  background: #f5f8f7;
+  color: #3f6758;
+  font-size: 9px;
+  overflow-wrap: anywhere;
+}
+
+.credential-row > small {
+  color: #82908a;
+  font-size: 9px;
+}
+
+@media (max-width: 640px) {
+  .credential-field {
+    grid-template-columns: 1fr 32px;
+  }
+
+  .credential-field input:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .credential-row__head {
+    display: grid;
+  }
+}
+

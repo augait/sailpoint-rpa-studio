@@ -27,6 +27,7 @@ import '@xyflow/react/dist/style.css'
 import './App.css'
 import { Login } from './Login'
 import { ApplicationsDialog } from './ApplicationsDialog'
+import { CredentialsDialog } from './CredentialsDialog'
 import { ExecutionDetail } from './ExecutionDetail'
 import { ExecutionDialog } from './ExecutionDialog'
 import { ExecutionHistory } from './ExecutionHistory'
@@ -1403,6 +1404,13 @@ function App() {
     applications,
     setApplications,
   ] = useState<Application[]>([])
+
+  const [
+    credentialApplication,
+    setCredentialApplication,
+  ] = useState<Application | null>(
+    null,
+  )
 
   const [
     applicationsLoading,
@@ -2893,8 +2901,36 @@ function App() {
           void loadApplications()
         }}
         onCreate={handleCreateApplication}
+        onCredentials={(application) =>
+          setCredentialApplication(
+            application,
+          )
+        }
         onClose={() =>
           setApplicationsOpen(false)
+        }
+      />
+
+      <CredentialsDialog
+        open={
+          credentialApplication
+          !== null
+        }
+        application={
+          credentialApplication
+        }
+        token={
+          session.access_token
+        }
+        canManage={
+          ['ADMIN', 'DEVELOPER'].includes(
+            session.role,
+          )
+        }
+        onClose={() =>
+          setCredentialApplication(
+            null,
+          )
         }
       />
 

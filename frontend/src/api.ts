@@ -485,3 +485,84 @@ export async function createApplication(
     },
   )
 }
+
+
+export type ApplicationCredential = {
+  id: string
+  application_id: string
+  name: string
+  description: string
+  fields: string[]
+  created_at: string
+  updated_at: string
+}
+
+
+export type SaveCredentialInput = {
+  name: string
+  description: string
+  values: Record<string, string>
+}
+
+
+export async function listApplicationCredentials(
+  token: string,
+  applicationId: string,
+): Promise<ApplicationCredential[]> {
+  return api<ApplicationCredential[]>(
+    `/applications/${applicationId}/credentials`,
+    {
+      token,
+    },
+  )
+}
+
+
+export async function createApplicationCredential(
+  token: string,
+  applicationId: string,
+  body: SaveCredentialInput,
+): Promise<ApplicationCredential> {
+  return api<ApplicationCredential>(
+    `/applications/${applicationId}/credentials`,
+    {
+      method: 'POST',
+      token,
+      body,
+    },
+  )
+}
+
+
+export async function updateApplicationCredential(
+  token: string,
+  applicationId: string,
+  credentialId: string,
+  body: SaveCredentialInput,
+): Promise<ApplicationCredential> {
+  return api<ApplicationCredential>(
+    `/applications/${applicationId}/credentials/${credentialId}`,
+    {
+      method: 'PUT',
+      token,
+      body,
+    },
+  )
+}
+
+
+export async function deleteApplicationCredential(
+  token: string,
+  applicationId: string,
+  credentialId: string,
+): Promise<{
+  status: string
+}> {
+  return api(
+    `/applications/${applicationId}/credentials/${credentialId}`,
+    {
+      method: 'DELETE',
+      token,
+    },
+  )
+}
