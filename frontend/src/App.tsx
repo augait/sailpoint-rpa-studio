@@ -28,6 +28,7 @@ import './App.css'
 import { Login } from './Login'
 import { ApplicationsDialog } from './ApplicationsDialog'
 import { CredentialsDialog } from './CredentialsDialog'
+import { RecorderDialog } from './RecorderDialog'
 import { ExecutionDetail } from './ExecutionDetail'
 import { ExecutionDialog } from './ExecutionDialog'
 import { ExecutionHistory } from './ExecutionHistory'
@@ -963,6 +964,343 @@ function validateActionStep(
 }
 
 
+
+function objectRecord(
+  value: unknown,
+): Record<string, unknown> | null {
+  if (
+    typeof value !== 'object'
+    || value === null
+    || Array.isArray(value)
+  ) {
+    return null
+  }
+
+  return value as Record<string, unknown>
+}
+
+
+function recordingToCanvas(
+  payload: unknown,
+): {
+  nodes: Node<StudioNodeData>[]
+  edges: Edge[]
+  actionCount: number
+} {
+  let rawSteps: unknown[] | null = null
+
+  if (Array.isArray(payload)) {
+    rawSteps = payload
+  } else {
+    const root =
+      objectRecord(payload)
+
+    if (
+      root
+      && Array.isArray(root.steps)
+    ) {
+      rawSteps = root.steps
+    }
+  }
+
+  if (!rawSteps) {
+    throw new Error(
+      'JSON do Recorder não possui uma lista steps válida',
+    )
+  }
+
+  if (rawSteps.length === 0) {
+    throw new Error(
+      'A gravação não possui ações',
+    )
+  }
+
+  if (rawSteps.length > 200) {
+    throw new Error(
+      'A gravação excede o limite de 200 ações',
+    )
+  }
+
+  const usedStepIds =
+    new Set<string>()
+
+  const steps: ActionStep[] =
+    rawSteps.map(
+      (value, index) => {
+        const raw =
+          objectRecord(value)
+
+        if (!raw) {
+          throw new Error(
+            `Ação ${index + 1} inválida`,
+          )
+        }
+
+        const type =
+          typeof raw.type === 'string'
+            ? raw.type
+            : ''
+
+        if (
+          !validActionTypes.has(
+            type,
+          )
+        ) {
+          throw new Error(
+            `Ação ${index + 1}: tipo "${type || '(vazio)'}" não suportado`,
+          )
+        }
+
+        const rawId =
+          typeof raw.id === 'string'
+            ? raw.id
+            : ''
+
+        let id = rawId
+
+        if (
+          !/^[A-Za-z0-9_-]{1,60}$/.test(
+            id,
+          )
+          || usedStepIds.has(id)
+        ) {
+          id =
+            `rec_${index + 1}_${crypto.randomUUID().slice(0, 8)}`
+        }
+
+        usedStepIds.add(id)
+
+        const rawSelectors =
+          Array.isArray(
+            raw.selectors,
+          )
+            ? raw.selectors
+            : []
+
+        const selectors:
+          Selector[] =
+          rawSelectors.map(
+            (
+              selectorValue,
+              selectorIndex,
+            ) => {
+              const selector =
+                objectRecord(
+                  selectorValue,
+                )
+
+              if (!selector) {
+                throw new Error(
+                  `Ação ${index + 1}: seletor ${selectorIndex + 1} inválido`,
+                )
+              }
+
+              return {
+                kind:
+                  String(
+                    selector.kind
+                    || '',
+                  ) as Selector['kind'],
+
+                value:
+                  typeof selector.value
+                    === 'string'
+                    ? selector.value
+                    : '',
+
+                ...(
+                  typeof selector.name
+                    === 'string'
+                  && selector.name
+                    ? {
+                        name:
+                          selector.name,
+                      }
+                    : {}
+                ),
+              }
+            },
+          )
+
+        const step: ActionStep = {
+          id,
+          type,
+
+          name:
+            typeof raw.name === 'string'
+            && raw.name.trim()
+              ? raw.name
+              : type,
+
+          enabled:
+            raw.enabled !== false,
+
+          selectors,
+
+          value:
+            typeof raw.value === 'string'
+              ? raw.value
+              : '',
+
+          url:
+            typeof raw.url === 'string'
+              ? raw.url
+              : '',
+
+          output:
+            typeof raw.output === 'string'
+              ? raw.output
+              : 'result',
+
+          timeout_ms:
+            typeof raw.timeout_ms
+              === 'number'
+              ? Math.trunc(
+                  raw.timeout_ms,
+                )
+              : 10000,
+
+          wait_ms:
+            typeof raw.wait_ms
+              === 'number'
+              ? Math.trunc(
+                  raw.wait_ms,
+                )
+              : 1000,
+
+          secret:
+            raw.secret === true,
+        }
+
+        const errors =
+          validateActionStep(
+            step,
+            `recording_${index + 1}`,
+          )
+
+        if (errors.length) {
+          throw new Error(
+            errors.join('\n'),
+          )
+        }
+
+        return step
+      },
+    )
+
+  const nodes:
+    Node<StudioNodeData>[] = [
+      {
+        id: '__start__',
+        type: 'studio',
+        deletable: false,
+        position: {
+          x: 430,
+          y: 40,
+        },
+        data: {
+          kind: 'start',
+          title: 'START',
+          subtitle:
+            'Início do workflow',
+        },
+      },
+
+      ...steps.map(
+        (step, index) => ({
+          id:
+            `rec_node_${index + 1}`,
+
+          type: 'studio',
+
+          position: {
+            x: 430,
+            y:
+              180
+              + index * 165,
+          },
+
+          data: {
+            kind:
+              'action' as const,
+
+            title:
+              step.name
+              || step.type,
+
+            subtitle:
+              `${step.type} · ${step.id}`,
+
+            step,
+          },
+        }),
+      ),
+
+      {
+        id: '__end__',
+        type: 'studio',
+        deletable: false,
+        position: {
+          x: 430,
+          y:
+            180
+            + steps.length
+            * 165,
+        },
+        data: {
+          kind: 'end',
+          title: 'END',
+          subtitle:
+            'Fim do workflow',
+        },
+      },
+    ]
+
+  const sequence = [
+    '__start__',
+    ...steps.map(
+      (_, index) =>
+        `rec_node_${index + 1}`,
+    ),
+    '__end__',
+  ]
+
+  const edges: Edge[] = []
+
+  for (
+    let index = 0;
+    index < sequence.length - 1;
+    index += 1
+  ) {
+    edges.push({
+      id:
+        `rec_edge_${index + 1}`,
+
+      source:
+        sequence[index],
+
+      target:
+        sequence[index + 1],
+
+      sourceHandle:
+        'default',
+
+      markerEnd: {
+        type:
+          MarkerType.ArrowClosed,
+      },
+    })
+  }
+
+  return {
+    nodes,
+    edges,
+    actionCount:
+      steps.length,
+  }
+}
+
+
 function validateGraph(
   graph: WorkflowGraphPayload,
 ): ValidationResult {
@@ -1392,6 +1730,12 @@ function App() {
   const [
     versionDialogOpen,
     setVersionDialogOpen,
+  ] = useState(false)
+
+
+  const [
+    recorderOpen,
+    setRecorderOpen,
   ] = useState(false)
 
 
@@ -1860,6 +2204,104 @@ function App() {
     && selectedWorkflow
     && loadedVersion.version
       !== selectedWorkflow.current_version
+  )
+
+
+  const handleImportRecording = useCallback(
+    async (
+      file: File,
+    ): Promise<boolean> => {
+      if (
+        !selectedWorkflow
+        || !loadedVersion
+      ) {
+        throw new Error(
+          'Selecione um workflow antes de importar uma gravação',
+        )
+      }
+
+      if (historicalView) {
+        throw new Error(
+          'Versões históricas são somente leitura',
+        )
+      }
+
+      let payload: unknown
+
+      try {
+        payload =
+          JSON.parse(
+            await file.text(),
+          )
+      } catch {
+        throw new Error(
+          'O arquivo não contém JSON válido',
+        )
+      }
+
+      const canvas =
+        recordingToCanvas(
+          payload,
+        )
+
+      const existingActions =
+        nodes.filter(
+          (node) =>
+            node.data.kind
+            !== 'start'
+            && node.data.kind
+            !== 'end',
+        ).length
+
+      if (
+        existingActions > 0
+        && !window.confirm(
+          `A importação substituirá os ${existingActions} nó(s) atuais por ${canvas.actionCount} ação(ões) gravadas. Continuar?`,
+        )
+      ) {
+        return false
+      }
+
+      setNodes(
+        canvas.nodes,
+      )
+
+      setEdges(
+        canvas.edges,
+      )
+
+      setSelectedNodeId(null)
+      setShowValidation(false)
+      setSaveConflict(false)
+      setSaveError('')
+
+      setSaveMessage(
+        `Gravação importada · ${canvas.actionCount} ação(ões). Revise e salve o workflow.`,
+      )
+
+      setIsDirty(true)
+
+      window.setTimeout(
+        () => {
+          flowInstance?.fitView({
+            padding: 0.2,
+            duration: 300,
+          })
+        },
+        0,
+      )
+
+      return true
+    },
+    [
+      flowInstance,
+      historicalView,
+      loadedVersion,
+      nodes,
+      selectedWorkflow,
+      setEdges,
+      setNodes,
+    ],
   )
 
 
@@ -2743,6 +3185,40 @@ function App() {
             disabled={
               !selectedWorkflow
               || !loadedVersion
+              || historicalView
+              || ![
+                'ADMIN',
+                'DEVELOPER',
+              ].includes(
+                session.role,
+              )
+            }
+            title={
+              !selectedWorkflow
+                ? 'Selecione um workflow'
+                : historicalView
+                  ? 'Versões históricas são somente leitura'
+                  : 'Abrir Recorder'
+            }
+            onClick={() => {
+              setRecorderOpen(true)
+
+              if (
+                applications.length
+                === 0
+              ) {
+                void loadApplications()
+              }
+            }}
+          >
+            ◉ Recorder
+          </button>
+
+          <button
+            type="button"
+            disabled={
+              !selectedWorkflow
+              || !loadedVersion
             }
             onClick={() => {
               setVersionDialogOpen(true)
@@ -2931,6 +3407,24 @@ function App() {
           setCredentialApplication(
             null,
           )
+        }
+      />
+
+      <RecorderDialog
+        open={recorderOpen}
+        application={
+          applications.find(
+            (application) =>
+              application.id
+              === selectedWorkflow?.application_id,
+          )
+          || null
+        }
+        onImport={
+          handleImportRecording
+        }
+        onClose={() =>
+          setRecorderOpen(false)
         }
       />
 
