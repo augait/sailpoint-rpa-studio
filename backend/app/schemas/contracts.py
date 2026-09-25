@@ -30,8 +30,7 @@ class ApplicationIn(StrictModel):
 
 class CredentialIn(StrictModel):
     name: str = Field(
-        min_length=1,
-        max_length=120,
+        pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,119}$",
     )
 
     description: str = Field(

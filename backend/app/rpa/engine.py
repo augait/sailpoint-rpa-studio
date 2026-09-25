@@ -32,31 +32,41 @@ class Engine:
         artifact_dir: Path,
         emit,
         cancelled,
+        credentials: dict | None = None,
     ):
         self.snapshot = snapshot
+
+        credentials = credentials or {}
 
         self.variables = {
             **inputs,
             "application": snapshot["application"],
+            "credential": credentials,
         }
 
         self.artifact_dir = artifact_dir
         self.emit = emit
         self.cancelled = cancelled
 
-        self.secrets = list(
-            secret_values(inputs)
+        credential_secrets = list(
+            secret_values(credentials)
         )
 
-        self.output_secrets = list(
-            secret_values(
+        self.secrets = [
+            *secret_values(inputs),
+            *credential_secrets,
+        ]
+
+        self.output_secrets = [
+            *secret_values(
                 {
                     k: v
                     for k, v in inputs.items()
                     if SENSITIVE.search(k)
                 }
-            )
-        )
+            ),
+            *credential_secrets,
+        ]
 
         self.output: dict = {}
         self.step_id: str | None = None

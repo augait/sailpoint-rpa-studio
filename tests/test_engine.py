@@ -658,3 +658,48 @@ async def test_graph_loop_enforces_iteration_limit(
         "iteration": 2,
         "max_iterations": 2,
     }
+
+
+def test_credentials_are_available_and_masked(
+    tmp_path,
+):
+    password = "engine-test-secret"
+
+    rpa = Engine(
+        snapshot([]),
+        {},
+        tmp_path,
+        lambda *a, **kw: None,
+        lambda: False,
+        credentials={
+            "legacy_login": {
+                "username": "engine_user",
+                "password": password,
+            }
+        },
+    )
+
+    assert (
+        rpa.variables[
+            "credential"
+        ][
+            "legacy_login"
+        ][
+            "username"
+        ]
+        == "engine_user"
+    )
+
+    assert (
+        rpa.variables[
+            "credential"
+        ][
+            "legacy_login"
+        ][
+            "password"
+        ]
+        == password
+    )
+
+    assert password in rpa.secrets
+    assert password in rpa.output_secrets
