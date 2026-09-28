@@ -35,6 +35,41 @@ class User(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class IntegrationClient(Base):
+    __tablename__ = "integration_clients"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=uid,
+    )
+
+    name: Mapped[str] = mapped_column(
+        String(80),
+        unique=True,
+    )
+
+    # Somente hash do segredo.
+    # O token em texto puro nunca é persistido.
+    secret_hash: Mapped[str] = mapped_column(
+        Text,
+    )
+
+    active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+    )
+
+    created_by: Mapped[str] = mapped_column(
+        ForeignKey("users.id"),
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+    )
+
+
 class Application(Base):
     __tablename__ = "applications"
 

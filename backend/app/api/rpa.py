@@ -11,7 +11,9 @@ from pydantic import Field, field_validator
 from sqlalchemy import select
 
 from backend.app.core.database import get_db
-from backend.app.core.security import roles
+from backend.app.core.security import (
+    integration_actor,
+)
 from backend.app.models.entities import (
     Application,
     Workflow,
@@ -145,11 +147,7 @@ def create_account(
         default=None,
     ),
     user=Depends(
-        roles(
-            "ADMIN",
-            "DEVELOPER",
-            "OPERATOR",
-        )
+        integration_actor
     ),
     db=Depends(get_db),
 ):

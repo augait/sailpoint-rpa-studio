@@ -1,5 +1,8 @@
+import hashlib
+import hmac
 import json
 import re
+from dataclasses import dataclass
 from datetime import timedelta
 from urllib.parse import urlsplit
 
@@ -12,7 +15,11 @@ from sqlalchemy import select
 
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
-from backend.app.models.entities import User, utcnow
+from backend.app.models.entities import (
+    IntegrationClient,
+    User,
+    utcnow,
+)
 
 hasher = PasswordHasher()
 bearer = HTTPBearer(auto_error=False)
@@ -66,6 +73,100 @@ def token(user: User) -> str:
         settings().jwt_secret,
         algorithm="HS256",
     )
+
+
+def integration_secret_hash(
+    client_id: str,
+    secret: str,
+) -> str:
+    return hmac.new(
+        settings().jwt_secret.encode(),
+        (
+            f"integration:"
+            f"{client_id}:"
+            f"{secret}"
+        ).encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+@dataclass(frozen=True)
+class IntegrationActor:
+    # Execution.created_by continua apontando
+    # para o usuário ADMIN que criou o client.
+    id: str
+    username: str
+    client_id: str
+
+
+def integration_actor(
+    auth: HTTPAuthorizationCredentials
+    | None = Depends(bearer),
+    db=Depends(get_db),
+) -> IntegrationActor:
+    try:
+        if auth is None:
+            raise ValueError()
+
+        value = auth.credentials
+
+        prefix, client_id, secret = (
+            value.split("_", 2)
+        )
+
+        if (
+            prefix != "sprpa"
+            or not client_id
+            or not secret
+        ):
+            raise ValueError()
+
+        record = db.scalar(
+            select(
+                IntegrationClient
+            ).where(
+                IntegrationClient.id
+                == client_id,
+                IntegrationClient.active.is_(
+                    True
+                ),
+            )
+        )
+
+        if not record:
+            raise ValueError()
+
+        expected = (
+            integration_secret_hash(
+                record.id,
+                secret,
+            )
+        )
+
+        if not hmac.compare_digest(
+            expected,
+            record.secret_hash,
+        ):
+            raise ValueError()
+
+        return IntegrationActor(
+            id=record.created_by,
+            username=(
+                f"integration:"
+                f"{record.name}"
+            ),
+            client_id=record.id,
+        )
+
+    except ValueError:
+        raise HTTPException(
+            401,
+            "Credencial de integração inválida",
+            headers={
+                "WWW-Authenticate":
+                    "Bearer",
+            },
+        )
 
 
 def current_user(

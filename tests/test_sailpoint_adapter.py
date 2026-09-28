@@ -71,6 +71,7 @@ def create_published_workflow(
 def test_create_account_requires_published_workflow(
     client,
     users,
+    integration_headers,
 ):
     application = client.post(
         "/api/v1/applications",
@@ -87,7 +88,7 @@ def test_create_account_requires_published_workflow(
 
     response = client.post(
         "/api/v1/rpa/accounts",
-        headers=users["OPERATOR"],
+        headers=integration_headers,
         json={
             "application":
                 "No published workflow",
@@ -106,6 +107,7 @@ def test_create_account_requires_published_workflow(
 def test_create_account_queues_published_workflow(
     client,
     users,
+    integration_headers,
     monkeypatch,
 ):
     jobs = []
@@ -130,7 +132,7 @@ def test_create_account_queues_published_workflow(
     )
 
     headers = {
-        **users["OPERATOR"],
+        **integration_headers,
         "Idempotency-Key":
             "SP-CREATE-1001",
     }

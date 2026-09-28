@@ -11,6 +11,7 @@ from backend.app.api import (
     auth,
     credentials,
     executions,
+    integrations,
     monitoring,
     rpa,
     workflows,
@@ -28,6 +29,7 @@ for router in (
     credentials.router,
     workflows.router,
     executions.router,
+    integrations.router,
     monitoring.router,
     rpa.router,
 ):

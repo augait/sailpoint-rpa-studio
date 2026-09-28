@@ -59,3 +59,26 @@ def client():
 
     with TestClient(app) as client:
         yield client
+
+
+@pytest.fixture
+def integration_headers(
+    client,
+    users,
+):
+    response = client.post(
+        "/api/v1/integration-clients",
+        headers=users["ADMIN"],
+        json={
+            "name":
+                "sailpoint-test",
+        },
+    )
+
+    assert response.status_code == 201
+
+    return {
+        "Authorization":
+            "Bearer "
+            + response.json()["token"]
+    }
