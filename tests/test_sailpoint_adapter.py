@@ -751,3 +751,157 @@ def test_account_aggregation_requires_workflow(
     )
 
     assert response.status_code == 409
+
+
+
+def test_create_account_sync_returns_created_account(
+    client,
+    users,
+    integration_headers,
+    monkeypatch,
+):
+    create_published_workflow(
+        client,
+        users["ADMIN"],
+    )
+
+    captured = {}
+
+    def fake_create_execution(
+        db,
+        workflow,
+        version,
+        request,
+        user,
+        key,
+        ip,
+    ):
+        captured["input"] = request.input
+        captured["correlation_id"] = (
+            request.correlation_id
+        )
+
+        return SimpleNamespace(
+            id="sync-create-test",
+        )
+
+    monkeypatch.setattr(
+        rpa_api,
+        "create_execution",
+        fake_create_execution,
+    )
+
+    monkeypatch.setattr(
+        rpa_api,
+        "wait_for_execution",
+        lambda *args, **kwargs:
+            SimpleNamespace(
+                status="SUCCESS",
+                output={
+                    "accountId":
+                        "john.doe",
+                },
+            ),
+    )
+
+    response = client.post(
+        "/api/v1/rpa/accounts/sync",
+        headers=integration_headers,
+        json={
+            "application":
+                "SailPoint Legacy Test",
+            "identity": {
+                "username":
+                    "john.doe",
+                "firstname":
+                    "John",
+                "lastname":
+                    "Doe",
+                "email":
+                    "john.doe@test.local",
+                "department":
+                    "IT",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+
+    result = response.json()
+
+    assert result == {
+        "username":
+            "john.doe",
+        "firstname":
+            "John",
+        "lastname":
+            "Doe",
+        "email":
+            "john.doe@test.local",
+        "department":
+            "IT",
+        "accountId":
+            "john.doe",
+    }
+
+    assert captured["input"]["username"] == (
+        "john.doe"
+    )
+
+    # O ISC não é obrigado a fornecer
+    # correlationId.
+    assert (
+        captured["correlation_id"]
+        is None
+    )
+
+
+def test_create_account_sync_propagates_failure(
+    client,
+    users,
+    integration_headers,
+    monkeypatch,
+):
+    create_published_workflow(
+        client,
+        users["ADMIN"],
+    )
+
+    monkeypatch.setattr(
+        rpa_api,
+        "create_execution",
+        lambda *args, **kwargs:
+            SimpleNamespace(
+                id="sync-create-failed",
+            ),
+    )
+
+    monkeypatch.setattr(
+        rpa_api,
+        "wait_for_execution",
+        lambda *args, **kwargs:
+            SimpleNamespace(
+                status="FAILED",
+                output={},
+            ),
+    )
+
+    response = client.post(
+        "/api/v1/rpa/accounts/sync",
+        headers=integration_headers,
+        json={
+            "application":
+                "SailPoint Legacy Test",
+            "identity": {
+                "username":
+                    "failed.user",
+            },
+        },
+    )
+
+    assert response.status_code == 502
+
+    assert (
+        "Create Account falhou"
+        in response.json()["detail"]
+    )

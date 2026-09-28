@@ -43,8 +43,8 @@ class CreateAccountIn(StrictModel):
         max_length=120,
     )
 
-    correlationId: str = Field(
-        min_length=1,
+    correlationId: str | None = Field(
+        default=None,
         max_length=100,
         pattern=r"^[A-Za-z0-9_.:-]+$",
     )
@@ -426,6 +426,139 @@ def create_account(
             version.version,
     }
 
+
+
+@router.post(
+    "/accounts/sync",
+)
+def create_account_sync(
+    body: CreateAccountIn,
+    request: Request,
+    idempotency_key: str | None = Header(
+        default=None,
+    ),
+    user=Depends(
+        integration_actor
+    ),
+    db=Depends(get_db),
+):
+    if (
+        idempotency_key
+        and not re.fullmatch(
+            r"[A-Za-z0-9_.:-]{1,100}",
+            idempotency_key,
+        )
+    ):
+        raise HTTPException(
+            422,
+            "Idempotency-Key inválida",
+        )
+
+    application = db.scalar(
+        select(
+            Application
+        ).where(
+            Application.name
+            == body.application
+        )
+    )
+
+    if not application:
+        raise HTTPException(
+            404,
+            "Aplicação não encontrada",
+        )
+
+    workflow, version = (
+        published_workflow(
+            db,
+            application.id,
+            "CREATE_ACCOUNT",
+        )
+    )
+
+    if not any(
+        step.get(
+            "enabled",
+            True,
+        )
+        for step in version.steps
+    ):
+        raise HTTPException(
+            409,
+            "Workflow publicado sem etapas habilitadas",
+        )
+
+    execution_input = dict(
+        body.identity
+    )
+
+    record = create_execution(
+        db,
+        workflow,
+        version,
+        ExecutionIn(
+            input=execution_input,
+            correlation_id=
+                body.correlationId,
+        ),
+        user,
+        (
+            idempotency_key
+            or body.correlationId
+        ),
+        (
+            request.client.host
+            if request.client
+            else ""
+        ),
+    )
+
+    result = wait_for_execution(
+        db,
+        record.id,
+    )
+
+    if result is None:
+        raise HTTPException(
+            504,
+            "Timeout aguardando Create Account",
+        )
+
+    if result.status != "SUCCESS":
+        raise HTTPException(
+            502,
+            (
+                "Create Account falhou: "
+                f"{result.status}"
+            ),
+        )
+
+    output = (
+        result.output
+        or {}
+    )
+
+    if not isinstance(
+        output,
+        dict,
+    ):
+        raise HTTPException(
+            502,
+            "Workflow de criação retornou formato inválido",
+        )
+
+    # Mantemos o adapter genérico.
+    #
+    # Os atributos enviados pelo ISC são devolvidos,
+    # mas valores retornados pelo target/workflow têm
+    # precedência caso o sistema normalize algum campo.
+    account = {
+        **body.identity,
+        **output,
+    }
+
+    return account
 
 
 @router.put(
