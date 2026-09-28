@@ -451,3 +451,21 @@ def execution_status(
         "duration":
             record.duration,
     }
+
+
+@router.get(
+    "/test-connection",
+)
+def test_connection(
+    user=Depends(
+        integration_actor
+    ),
+):
+    return {
+        "status":
+            "ok",
+        "service":
+            "sailpoint-rpa-studio",
+        "authenticated":
+            True,
+    }

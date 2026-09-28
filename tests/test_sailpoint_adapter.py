@@ -562,3 +562,32 @@ def test_integration_can_read_execution_status(
     )
 
     assert human.status_code == 401
+
+
+def test_integration_test_connection(
+    client,
+    users,
+    integration_headers,
+):
+    response = client.get(
+        "/api/v1/rpa/test-connection",
+        headers=integration_headers,
+    )
+
+    assert response.status_code == 200
+
+    assert response.json() == {
+        "status":
+            "ok",
+        "service":
+            "sailpoint-rpa-studio",
+        "authenticated":
+            True,
+    }
+
+    human = client.get(
+        "/api/v1/rpa/test-connection",
+        headers=users["ADMIN"],
+    )
+
+    assert human.status_code == 401
