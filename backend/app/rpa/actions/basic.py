@@ -79,8 +79,86 @@ async def perform(page, step, variables, emit, capture):
                 timeout=step.timeout_ms,
             )
         case "extract_text":
-            variables[step.output] = (await target.inner_text(timeout=step.timeout_ms))[:10000]
-            return {step.output: variables[step.output]}
+            variables[step.output] = (
+                await target.inner_text(
+                    timeout=step.timeout_ms
+                )
+            )[:10000]
+
+            return {
+                step.output:
+                    variables[step.output]
+            }
+
+        case "extract_table":
+            row_selector = resolve(
+                step.row_selector,
+                variables,
+            )
+
+            rows = target.locator(
+                row_selector
+            )
+
+            row_count = await rows.count()
+
+            # Proteção contra páginas inesperadas
+            # ou seletores excessivamente amplos.
+            if row_count > 5000:
+                raise ValueError(
+                    "TABLE_ROW_LIMIT"
+                )
+
+            resolved_columns = {
+                name: resolve(
+                    selector,
+                    variables,
+                )
+                for name, selector
+                in step.columns.items()
+            }
+
+            result = []
+
+            for index in range(
+                row_count
+            ):
+                row = rows.nth(index)
+                item = {}
+
+                for (
+                    name,
+                    selector,
+                ) in resolved_columns.items():
+                    cell = row.locator(
+                        selector
+                    )
+
+                    count = await cell.count()
+
+                    if count != 1:
+                        raise ValueError(
+                            "TABLE_COLUMN_MATCH_INVALID"
+                        )
+
+                    item[name] = (
+                        await cell.inner_text(
+                            timeout=
+                                step.timeout_ms
+                        )
+                    )[:10000].strip()
+
+                result.append(item)
+
+            variables[
+                step.output
+            ] = result
+
+            return {
+                step.output:
+                    result
+            }
+
         case "assert_text":
             await expect(target).to_contain_text(value, timeout=step.timeout_ms)
         case "check":

@@ -88,6 +88,7 @@ class Step(StrictModel):
         "select",
         "screenshot",
         "extract_text",
+        "extract_table",
         "assert_text",
         "check",
         "press",
@@ -101,18 +102,70 @@ class Step(StrictModel):
     output: str = Field(default="result", pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,59}$")
     timeout_ms: int = Field(default=10000, ge=200, le=60000)
     wait_ms: int = Field(default=1000, ge=0, le=30000)
+
+    # Usado por extract_table.
+    # O selector principal identifica o container
+    # e row_selector encontra as linhas dentro dele.
+    row_selector: str = Field(
+        default="tr",
+        min_length=1,
+        max_length=1000,
+    )
+
+    # Nome lógico do atributo -> seletor CSS
+    # relativo a cada linha.
+    columns: dict[str, str] = Field(
+        default_factory=dict,
+        max_length=50,
+    )
+
     secret: bool = False
 
     @model_validator(mode="after")
     def valid_step(self):
         if (
             self.type
-            in {"click", "fill", "select", "extract_text", "assert_text", "check", "press", "hover"}
+            in {
+                "click",
+                "fill",
+                "select",
+                "extract_text",
+                "extract_table",
+                "assert_text",
+                "check",
+                "press",
+                "hover",
+            }
             and not self.selectors
         ):
             raise ValueError("Esta ação precisa de um seletor")
         if self.type == "navigate" and not self.url:
             raise ValueError("Navigate precisa de URL")
+
+        if self.type == "extract_table":
+            if not self.columns:
+                raise ValueError(
+                    "Extract table precisa de colunas"
+                )
+
+            column_name = re.compile(
+                r"^[A-Za-z_][A-Za-z0-9_]{0,59}$"
+            )
+
+            for name, selector in self.columns.items():
+                if not column_name.fullmatch(name):
+                    raise ValueError(
+                        "Nome de coluna inválido"
+                    )
+
+                if (
+                    not isinstance(selector, str)
+                    or not selector
+                    or len(selector) > 1000
+                ):
+                    raise ValueError(
+                        "Seletor de coluna inválido"
+                    )
         password_target = any(SENSITIVE.search(s.value) for s in self.selectors)
         if self.type == "fill" and (self.secret or password_target):
             self.secret = True
