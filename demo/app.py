@@ -76,3 +76,86 @@ async def create(request: Request):
         except sqlite3.IntegrityError:
             return {"message": "User already exists", "accountId": data["username"]}
     return {"message": "User created successfully", "accountId": data["username"]}
+
+
+
+@app.put("/accounts/{username}")
+async def update_account(
+    username: str,
+    request: Request,
+):
+    authenticated(request)
+
+    data = await request.json()
+
+    keys = (
+        "firstname",
+        "lastname",
+        "email",
+        "department",
+    )
+
+    if not all(
+        isinstance(
+            data.get(key),
+            str,
+        )
+        and 0 < len(data[key]) <= 200
+        for key in keys
+    ):
+        raise HTTPException(
+            422,
+            "Invalid fields",
+        )
+
+    if data["department"] not in {
+        "IT",
+        "HR",
+        "FINANCE",
+    }:
+        raise HTTPException(
+            422,
+            "Invalid department",
+        )
+
+    with database() as db:
+        existing = db.execute(
+            """
+            SELECT username
+            FROM accounts
+            WHERE username = ?
+            """,
+            (username,),
+        ).fetchone()
+
+        if not existing:
+            raise HTTPException(
+                404,
+                "User not found",
+            )
+
+        db.execute(
+            """
+            UPDATE accounts
+            SET
+                firstname = ?,
+                lastname = ?,
+                email = ?,
+                department = ?
+            WHERE username = ?
+            """,
+            (
+                data["firstname"],
+                data["lastname"],
+                data["email"],
+                data["department"],
+                username,
+            ),
+        )
+
+    return {
+        "message":
+            "User updated successfully",
+        "accountId":
+            username,
+    }
