@@ -20,6 +20,70 @@ def database():
     db.execute(
         "CREATE TABLE IF NOT EXISTS accounts (username TEXT PRIMARY KEY, firstname TEXT, lastname TEXT, email TEXT, department TEXT)"
     )
+
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS entitlements (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL
+        )
+        """
+    )
+
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS account_entitlements (
+            username TEXT NOT NULL,
+            entitlement_id TEXT NOT NULL,
+            PRIMARY KEY (
+                username,
+                entitlement_id
+            )
+        )
+        """
+    )
+
+    db.executemany(
+        """
+        INSERT OR IGNORE INTO entitlements (
+            id,
+            name,
+            description
+        )
+        VALUES (?, ?, ?)
+        """,
+        [
+            (
+                "APP_USER",
+                "Application User",
+                "Basic access to the legacy application",
+            ),
+            (
+                "IT_SUPPORT",
+                "IT Support",
+                "IT support access",
+            ),
+            (
+                "HR_VIEWER",
+                "HR Viewer",
+                "Read access to HR resources",
+            ),
+            (
+                "FINANCE_VIEWER",
+                "Finance Viewer",
+                "Read access to finance resources",
+            ),
+            (
+                "APP_ADMIN",
+                "Application Administrator",
+                "Administrative access to the legacy application",
+            ),
+        ],
+    )
+
+    db.commit()
+
     return db
 
 
@@ -158,4 +222,170 @@ async def update_account(
             "User updated successfully",
         "accountId":
             username,
+    }
+
+
+
+@app.get("/entitlements")
+def entitlements(request: Request):
+    authenticated(request)
+
+    with database() as db:
+        db.row_factory = sqlite3.Row
+
+        return [
+            dict(row)
+            for row in db.execute(
+                """
+                SELECT
+                    id,
+                    name,
+                    description
+                FROM entitlements
+                ORDER BY id
+                """
+            )
+        ]
+
+
+@app.get("/accounts/{username}/entitlements")
+def account_entitlements(
+    username: str,
+    request: Request,
+):
+    authenticated(request)
+
+    with database() as db:
+        db.row_factory = sqlite3.Row
+
+        account = db.execute(
+            """
+            SELECT username
+            FROM accounts
+            WHERE username = ?
+            """,
+            (username,),
+        ).fetchone()
+
+        if not account:
+            raise HTTPException(
+                404,
+                "User not found",
+            )
+
+        return [
+            dict(row)
+            for row in db.execute(
+                """
+                SELECT
+                    e.id,
+                    e.name,
+                    e.description
+                FROM entitlements e
+                INNER JOIN account_entitlements ae
+                    ON ae.entitlement_id = e.id
+                WHERE ae.username = ?
+                ORDER BY e.id
+                """,
+                (username,),
+            )
+        ]
+
+
+@app.post(
+    "/accounts/{username}/entitlements/{entitlement_id}"
+)
+def add_entitlement(
+    username: str,
+    entitlement_id: str,
+    request: Request,
+):
+    authenticated(request)
+
+    with database() as db:
+        account = db.execute(
+            """
+            SELECT username
+            FROM accounts
+            WHERE username = ?
+            """,
+            (username,),
+        ).fetchone()
+
+        if not account:
+            raise HTTPException(
+                404,
+                "User not found",
+            )
+
+        entitlement = db.execute(
+            """
+            SELECT id
+            FROM entitlements
+            WHERE id = ?
+            """,
+            (entitlement_id,),
+        ).fetchone()
+
+        if not entitlement:
+            raise HTTPException(
+                404,
+                "Entitlement not found",
+            )
+
+        db.execute(
+            """
+            INSERT OR IGNORE INTO account_entitlements (
+                username,
+                entitlement_id
+            )
+            VALUES (?, ?)
+            """,
+            (
+                username,
+                entitlement_id,
+            ),
+        )
+
+    return {
+        "message":
+            "Entitlement added successfully",
+        "username":
+            username,
+        "entitlementId":
+            entitlement_id,
+    }
+
+
+@app.delete(
+    "/accounts/{username}/entitlements/{entitlement_id}"
+)
+def remove_entitlement(
+    username: str,
+    entitlement_id: str,
+    request: Request,
+):
+    authenticated(request)
+
+    with database() as db:
+        db.execute(
+            """
+            DELETE FROM account_entitlements
+            WHERE
+                username = ?
+                AND entitlement_id = ?
+            """,
+            (
+                username,
+                entitlement_id,
+            ),
+        )
+
+    return {
+        "message":
+            "Entitlement removed successfully",
+        "username":
+            username,
+        "entitlementId":
+            entitlement_id,
     }

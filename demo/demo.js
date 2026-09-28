@@ -273,3 +273,49 @@ document.querySelector(
     ).textContent = e.message;
   }
 };
+
+
+async function loadEntitlements() {
+  const rows = await api(
+    "/entitlements",
+  );
+
+  document.querySelector(
+    "#entitlements",
+  ).replaceChildren(
+    ...rows.map((row) => {
+      const tr =
+        document.createElement(
+          "tr",
+        );
+
+      for (const value of [
+        row.id,
+        row.name,
+        row.description,
+      ]) {
+        const td =
+          document.createElement(
+            "td",
+          );
+
+        td.textContent = value;
+
+        tr.append(td);
+      }
+
+      return tr;
+    }),
+  );
+}
+
+
+document.querySelector(
+  "#show-entitlements",
+).onclick = async () => {
+  document.querySelector(
+    "#entitlement-section",
+  ).hidden = false;
+
+  await loadEntitlements();
+};

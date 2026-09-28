@@ -24,6 +24,7 @@
     </form>
     <section id="portal" hidden>
       <button id="users">Users</button>
+      <button id="show-entitlements">Entitlements</button>
       <section id="user-section" hidden>
         <h2>Users</h2>
         <button id="new-user">New User</button>
@@ -74,6 +75,22 @@
             </tr>
           </thead>
           <tbody id="accounts"></tbody>
+        </table>
+      </section>
+
+      <section id="entitlement-section" hidden>
+        <h2>Entitlements</h2>
+
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+
+          <tbody id="entitlements"></tbody>
         </table>
       </section>
     </section>
