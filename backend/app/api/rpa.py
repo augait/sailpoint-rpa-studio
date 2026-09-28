@@ -327,6 +327,113 @@ def aggregate_accounts(
     return accounts
 
 
+@router.get(
+    "/entitlements",
+)
+def aggregate_entitlements(
+    request: Request,
+    application: str = Query(
+        min_length=1,
+        max_length=120,
+    ),
+    user=Depends(
+        integration_actor
+    ),
+    db=Depends(get_db),
+):
+    target = db.scalar(
+        select(Application).where(
+            Application.name
+            == application
+        )
+    )
+
+    if not target:
+        raise HTTPException(
+            404,
+            "Aplicação não encontrada",
+        )
+
+    workflow, version = (
+        published_workflow(
+            db,
+            target.id,
+            "GROUP_AGGREGATION",
+        )
+    )
+
+    if not any(
+        step.get(
+            "enabled",
+            True,
+        )
+        for step in version.steps
+    ):
+        raise HTTPException(
+            409,
+            "Workflow publicado sem etapas habilitadas",
+        )
+
+    execution = create_execution(
+        db,
+        workflow,
+        version,
+        ExecutionIn(
+            input={},
+        ),
+        user,
+        None,
+        (
+            request.client.host
+            if request.client
+            else ""
+        ),
+    )
+
+    result = wait_for_execution(
+        db,
+        execution.id,
+    )
+
+    if result is None:
+        raise HTTPException(
+            504,
+            "Timeout aguardando Group Aggregation",
+        )
+
+    if result.status != "SUCCESS":
+        raise HTTPException(
+            502,
+            (
+                "Group Aggregation falhou: "
+                f"{result.status}"
+            ),
+        )
+
+    entitlements = (
+        result.output or {}
+    ).get(
+        "entitlements"
+    )
+
+    if (
+        not isinstance(
+            entitlements,
+            list,
+        )
+        or not all(
+            isinstance(item, dict)
+            for item in entitlements
+        )
+    ):
+        raise HTTPException(
+            502,
+            "Workflow de grupos retornou formato inválido",
+        )
+
+    return entitlements
+
+
 @router.post(
     "/accounts",
     status_code=202,

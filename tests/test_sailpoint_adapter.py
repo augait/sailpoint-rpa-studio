@@ -905,3 +905,154 @@ def test_create_account_sync_propagates_failure(
         "Create Account falhou"
         in response.json()["detail"]
     )
+
+
+def create_published_group_workflow(
+    client,
+    headers,
+):
+    application = client.post(
+        "/api/v1/applications",
+        headers=headers,
+        json={
+            "name":
+                "SailPoint Group Test",
+            "url":
+                "http://127.0.0.1:18081",
+        },
+    )
+
+    assert application.status_code == 201
+
+    workflow = client.post(
+        "/api/v1/workflows",
+        headers=headers,
+        json={
+            "name":
+                "ISC GROUP_AGGREGATION",
+            "application_id":
+                application.json()["id"],
+            "operation":
+                "GROUP_AGGREGATION",
+            "steps": [
+                {
+                    "id":
+                        "wait_groups",
+                    "type":
+                        "wait",
+                    "wait_ms":
+                        5,
+                }
+            ],
+        },
+    )
+
+    assert workflow.status_code == 201
+
+    published = client.post(
+        (
+            "/api/v1/workflows/"
+            f"{workflow.json()['id']}"
+            "/publish"
+        ),
+        headers=headers,
+    )
+
+    assert published.status_code == 200
+
+    return application.json()
+
+
+def test_group_aggregation_returns_entitlements(
+    client,
+    users,
+    integration_headers,
+    monkeypatch,
+):
+    create_published_group_workflow(
+        client,
+        users["ADMIN"],
+    )
+
+    monkeypatch.setattr(
+        rpa_api,
+        "create_execution",
+        lambda *args, **kwargs:
+            SimpleNamespace(
+                id="group-aggregation-test",
+            ),
+    )
+
+    entitlements = [
+        {
+            "id":
+                "APP_USER",
+            "name":
+                "Application User",
+            "description":
+                "Basic access",
+        },
+        {
+            "id":
+                "IT_SUPPORT",
+            "name":
+                "IT Support",
+            "description":
+                "IT support access",
+        },
+    ]
+
+    monkeypatch.setattr(
+        rpa_api,
+        "wait_for_execution",
+        lambda *args, **kwargs:
+            SimpleNamespace(
+                status="SUCCESS",
+                output={
+                    "entitlements":
+                        entitlements,
+                },
+            ),
+    )
+
+    response = client.get(
+        (
+            "/api/v1/rpa/entitlements"
+            "?application="
+            "SailPoint%20Group%20Test"
+        ),
+        headers=integration_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json() == entitlements
+
+
+def test_group_aggregation_requires_workflow(
+    client,
+    users,
+    integration_headers,
+):
+    application = client.post(
+        "/api/v1/applications",
+        headers=users["ADMIN"],
+        json={
+            "name":
+                "No group workflow",
+            "url":
+                "http://127.0.0.1:18081",
+        },
+    )
+
+    assert application.status_code == 201
+
+    response = client.get(
+        (
+            "/api/v1/rpa/entitlements"
+            "?application="
+            "No%20group%20workflow"
+        ),
+        headers=integration_headers,
+    )
+
+    assert response.status_code == 409
