@@ -105,6 +105,11 @@ def create_execution(
         workflow_id=workflow.id,
         workflow_version_id=version.id,
         created_by=user.id,
+        integration_client_id=getattr(
+            user,
+            "client_id",
+            None,
+        ),
         correlation_id=request.correlation_id or uid(),
         idempotency_key=key,
         request_hash=digest,

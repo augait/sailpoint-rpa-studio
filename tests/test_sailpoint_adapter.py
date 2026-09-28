@@ -438,3 +438,127 @@ def test_update_account_queues_published_workflow(
     )
 
     assert len(jobs) == 1
+
+
+def test_integration_can_read_execution_status(
+    client,
+    users,
+    integration_headers,
+    monkeypatch,
+):
+    jobs = []
+
+    monkeypatch.setattr(
+        outbox_service,
+        "queue",
+        lambda: SimpleNamespace(
+            fetch_job=lambda job_id:
+                None,
+            enqueue=lambda *args, **kwargs:
+                jobs.append(
+                    (args, kwargs)
+                ),
+        ),
+    )
+
+    create_published_workflow(
+        client,
+        users["ADMIN"],
+    )
+
+    response = client.post(
+        "/api/v1/rpa/accounts",
+        headers={
+            **integration_headers,
+            "Idempotency-Key":
+                "SP-STATUS-1001",
+        },
+        json={
+            "application":
+                "SailPoint Legacy Test",
+            "correlationId":
+                "SP-STATUS-1001",
+            "identity": {
+                "username":
+                    "status.user",
+                "firstname":
+                    "Status",
+                "lastname":
+                    "User",
+                "email":
+                    "status.user@test.local",
+                "department":
+                    "IT",
+            },
+        },
+    )
+
+    assert response.status_code == 202
+
+    execution_id = (
+        response.json()["executionId"]
+    )
+
+    status = client.get(
+        (
+            "/api/v1/rpa/executions/"
+            + execution_id
+        ),
+        headers=integration_headers,
+    )
+
+    assert status.status_code == 200
+
+    result = status.json()
+
+    assert (
+        result["executionId"]
+        == execution_id
+    )
+
+    assert (
+        result["correlationId"]
+        == "SP-STATUS-1001"
+    )
+
+    assert result["status"] == "QUEUED"
+
+    other = client.post(
+        "/api/v1/integration-clients",
+        headers=users["ADMIN"],
+        json={
+            "name":
+                "status-reader-other",
+        },
+    )
+
+    assert other.status_code == 201
+
+    other_headers = {
+        "Authorization":
+            f"Bearer {other.json()['token']}",
+    }
+
+    other_status = client.get(
+        (
+            "/api/v1/rpa/executions/"
+            + execution_id
+        ),
+        headers=other_headers,
+    )
+
+    # Uma integração não pode enxergar
+    # execuções pertencentes a outra.
+    assert other_status.status_code == 404
+
+    # JWT humano não é credencial
+    # válida para endpoints RPA.
+    human = client.get(
+        (
+            "/api/v1/rpa/executions/"
+            + execution_id
+        ),
+        headers=users["ADMIN"],
+    )
+
+    assert human.status_code == 401

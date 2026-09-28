@@ -327,6 +327,13 @@ class Execution(Base):
     )
 
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
+
+    integration_client_id: Mapped[str | None] = mapped_column(
+        ForeignKey("integration_clients.id"),
+        nullable=True,
+        index=True,
+    )
+
     correlation_id: Mapped[str] = mapped_column(String(100), index=True)
     idempotency_key: Mapped[str | None] = mapped_column(
         String(100), unique=True

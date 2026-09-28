@@ -16,6 +16,7 @@ from backend.app.core.security import (
 )
 from backend.app.models.entities import (
     Application,
+    Execution,
     Workflow,
     WorkflowVersion,
 )
@@ -401,4 +402,52 @@ def update_account(
             workflow.id,
         "workflowVersion":
             version.version,
+    }
+
+
+
+@router.get(
+    "/executions/{execution_id}",
+)
+def execution_status(
+    execution_id: str,
+    user=Depends(
+        integration_actor
+    ),
+    db=Depends(get_db),
+):
+    record = db.get(
+        Execution,
+        execution_id,
+    )
+
+    if (
+        not record
+        or record.integration_client_id
+        != user.client_id
+    ):
+        # Não revela se uma execução
+        # pertencente a outro principal existe.
+        raise HTTPException(
+            404,
+            "Execução não encontrada",
+        )
+
+    return {
+        "executionId":
+            record.id,
+        "correlationId":
+            record.correlation_id,
+        "status":
+            record.status,
+        "output":
+            record.output or {},
+        "error":
+            record.error,
+        "startedAt":
+            record.started_at,
+        "finishedAt":
+            record.finished_at,
+        "duration":
+            record.duration,
     }
