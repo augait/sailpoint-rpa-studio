@@ -12,6 +12,7 @@ from backend.app.api import (
     credentials,
     executions,
     monitoring,
+    rpa,
     workflows,
 )
 
@@ -28,6 +29,7 @@ for router in (
     workflows.router,
     executions.router,
     monitoring.router,
+    rpa.router,
 ):
     app.include_router(router)
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
