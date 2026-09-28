@@ -80,6 +80,54 @@ class CreateAccountIn(StrictModel):
         return values
 
 
+
+class UpdateAccountIn(StrictModel):
+    application: str = Field(
+        min_length=1,
+        max_length=120,
+    )
+
+    correlationId: str = Field(
+        min_length=1,
+        max_length=100,
+        pattern=r"^[A-Za-z0-9_.:-]+$",
+    )
+
+    attributes: dict[str, str] = Field(
+        min_length=1,
+        max_length=50,
+    )
+
+    @field_validator("attributes")
+    @classmethod
+    def validate_attributes(
+        cls,
+        values,
+    ):
+        key_pattern = re.compile(
+            r"^[A-Za-z_][A-Za-z0-9_]{0,59}$"
+        )
+
+        for key, value in values.items():
+            if not key_pattern.fullmatch(key):
+                raise ValueError(
+                    "Nome de atributo inválido"
+                )
+
+            if not value:
+                raise ValueError(
+                    "Atributo não pode ser vazio"
+                )
+
+            if len(value) > 10000:
+                raise ValueError(
+                    "Atributo muito grande"
+                )
+
+        return values
+
+
+
 def published_workflow(
     db,
     application_id: str,
@@ -229,6 +277,126 @@ def create_account(
             record.id,
         "correlationId":
             record.correlation_id,
+        "workflowId":
+            workflow.id,
+        "workflowVersion":
+            version.version,
+    }
+
+
+
+@router.put(
+    "/accounts/{username}",
+    status_code=202,
+)
+def update_account(
+    username: str,
+    body: UpdateAccountIn,
+    request: Request,
+    idempotency_key: str | None = Header(
+        default=None,
+    ),
+    user=Depends(
+        integration_actor
+    ),
+    db=Depends(get_db),
+):
+    if (
+        not username
+        or len(username) > 200
+    ):
+        raise HTTPException(
+            422,
+            "Identificador de conta inválido",
+        )
+
+    if (
+        idempotency_key
+        and not re.fullmatch(
+            r"[A-Za-z0-9_.:-]{1,100}",
+            idempotency_key,
+        )
+    ):
+        raise HTTPException(
+            422,
+            "Idempotency-Key inválida",
+        )
+
+    application = db.scalar(
+        select(
+            Application
+        ).where(
+            Application.name
+            == body.application
+        )
+    )
+
+    if not application:
+        raise HTTPException(
+            404,
+            "Aplicação não encontrada",
+        )
+
+    workflow, version = (
+        published_workflow(
+            db,
+            application.id,
+            "UPDATE_ACCOUNT",
+        )
+    )
+
+    if not any(
+        step.get(
+            "enabled",
+            True,
+        )
+        for step in version.steps
+    ):
+        raise HTTPException(
+            409,
+            "Workflow publicado sem etapas habilitadas",
+        )
+
+    execution_input = {
+        **body.attributes,
+
+        # O identificador da URL é autoritativo.
+        # Um atributo username no body não pode
+        # substituir a conta alvo.
+        "username":
+            username,
+    }
+
+    record = create_execution(
+        db,
+        workflow,
+        version,
+        ExecutionIn(
+            input=execution_input,
+            correlation_id=
+                body.correlationId,
+        ),
+        user,
+        (
+            idempotency_key
+            or body.correlationId
+        ),
+        (
+            request.client.host
+            if request.client
+            else ""
+        ),
+    )
+
+    return {
+        "status":
+            "accepted",
+        "executionId":
+            record.id,
+        "correlationId":
+            record.correlation_id,
+        "accountId":
+            username,
         "workflowId":
             workflow.id,
         "workflowVersion":
