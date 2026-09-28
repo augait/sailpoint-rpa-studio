@@ -149,11 +149,8 @@ async function load() {
 
       for (const value of [
         row.username,
-        (
-          row.firstname
-          + " "
-          + row.lastname
-        ),
+        row.firstname,
+        row.lastname,
         row.email,
         row.department,
       ]) {

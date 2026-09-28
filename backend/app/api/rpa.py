@@ -1,10 +1,12 @@
 import re
+import time
 
 from fastapi import (
     APIRouter,
     Depends,
     Header,
     HTTPException,
+    Query,
     Request,
 )
 from pydantic import Field, field_validator
@@ -183,6 +185,146 @@ def published_workflow(
         )
 
     return workflow, version
+
+
+def wait_for_execution(
+    db,
+    execution_id: str,
+    timeout_seconds: float = 50,
+):
+    deadline = (
+        time.monotonic()
+        + timeout_seconds
+    )
+
+    terminal = {
+        "SUCCESS",
+        "FAILED",
+        "TIMEOUT",
+        "CANCELLED",
+    }
+
+    while time.monotonic() < deadline:
+        record = db.get(
+            Execution,
+            execution_id,
+        )
+
+        if not record:
+            return None
+
+        db.refresh(record)
+
+        if record.status in terminal:
+            return record
+
+        time.sleep(0.25)
+
+    return None
+
+
+@router.get(
+    "/accounts",
+)
+def aggregate_accounts(
+    request: Request,
+    application: str = Query(
+        min_length=1,
+        max_length=120,
+    ),
+    user=Depends(
+        integration_actor
+    ),
+    db=Depends(get_db),
+):
+    target = db.scalar(
+        select(Application).where(
+            Application.name
+            == application
+        )
+    )
+
+    if not target:
+        raise HTTPException(
+            404,
+            "Aplicação não encontrada",
+        )
+
+    workflow, version = (
+        published_workflow(
+            db,
+            target.id,
+            "ACCOUNT_AGGREGATION",
+        )
+    )
+
+    if not any(
+        step.get(
+            "enabled",
+            True,
+        )
+        for step in version.steps
+    ):
+        raise HTTPException(
+            409,
+            "Workflow publicado sem etapas habilitadas",
+        )
+
+    execution = create_execution(
+        db,
+        workflow,
+        version,
+        ExecutionIn(
+            input={},
+        ),
+        user,
+        None,
+        (
+            request.client.host
+            if request.client
+            else ""
+        ),
+    )
+
+    result = wait_for_execution(
+        db,
+        execution.id,
+    )
+
+    if result is None:
+        raise HTTPException(
+            504,
+            "Timeout aguardando Account Aggregation",
+        )
+
+    if result.status != "SUCCESS":
+        raise HTTPException(
+            502,
+            (
+                "Account Aggregation falhou: "
+                f"{result.status}"
+            ),
+        )
+
+    accounts = (
+        result.output or {}
+    ).get(
+        "accounts"
+    )
+
+    if (
+        not isinstance(accounts, list)
+        or not all(
+            isinstance(item, dict)
+            for item in accounts
+        )
+    ):
+        raise HTTPException(
+            502,
+            "Workflow de agregação retornou formato inválido",
+        )
+
+    return accounts
 
 
 @router.post(

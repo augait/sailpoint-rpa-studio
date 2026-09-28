@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from backend.app.api import rpa as rpa_api
 from backend.app.core.database import Session
 from backend.app.core.security import unseal
 from backend.app.models.entities import Execution
@@ -591,3 +592,162 @@ def test_integration_test_connection(
     )
 
     assert human.status_code == 401
+
+
+def create_published_aggregation_workflow(
+    client,
+    headers,
+):
+    application = client.post(
+        "/api/v1/applications",
+        headers=headers,
+        json={
+            "name":
+                "SailPoint Aggregation Test",
+            "url":
+                "http://127.0.0.1:18081",
+        },
+    )
+
+    assert application.status_code == 201
+
+    workflow = client.post(
+        "/api/v1/workflows",
+        headers=headers,
+        json={
+            "name":
+                "ISC ACCOUNT_AGGREGATION",
+            "application_id":
+                application.json()["id"],
+            "operation":
+                "ACCOUNT_AGGREGATION",
+            "steps": [
+                {
+                    "id":
+                        "wait_aggregation",
+                    "type":
+                        "wait",
+                    "wait_ms":
+                        5,
+                }
+            ],
+        },
+    )
+
+    assert workflow.status_code == 201
+
+    published = client.post(
+        (
+            "/api/v1/workflows/"
+            f"{workflow.json()['id']}"
+            "/publish"
+        ),
+        headers=headers,
+    )
+
+    assert published.status_code == 200
+
+    return application.json()
+
+
+def test_account_aggregation_returns_accounts(
+    client,
+    users,
+    integration_headers,
+    monkeypatch,
+):
+    create_published_aggregation_workflow(
+        client,
+        users["ADMIN"],
+    )
+
+    monkeypatch.setattr(
+        rpa_api,
+        "create_execution",
+        lambda *args, **kwargs:
+            SimpleNamespace(
+                id="aggregation-test",
+            ),
+    )
+
+    accounts = [
+        {
+            "username":
+                "test.user01",
+            "firstname":
+                "Test01",
+            "lastname":
+                "User",
+            "email":
+                "test.user01@test.local",
+            "department":
+                "IT",
+        },
+        {
+            "username":
+                "test.user02",
+            "firstname":
+                "Test02",
+            "lastname":
+                "User",
+            "email":
+                "test.user02@test.local",
+            "department":
+                "HR",
+        },
+    ]
+
+    monkeypatch.setattr(
+        rpa_api,
+        "wait_for_execution",
+        lambda *args, **kwargs:
+            SimpleNamespace(
+                status="SUCCESS",
+                output={
+                    "accounts":
+                        accounts,
+                },
+            ),
+    )
+
+    response = client.get(
+        (
+            "/api/v1/rpa/accounts"
+            "?application="
+            "SailPoint%20Aggregation%20Test"
+        ),
+        headers=integration_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json() == accounts
+
+
+def test_account_aggregation_requires_workflow(
+    client,
+    users,
+    integration_headers,
+):
+    application = client.post(
+        "/api/v1/applications",
+        headers=users["ADMIN"],
+        json={
+            "name":
+                "No aggregation workflow",
+            "url":
+                "http://127.0.0.1:18081",
+        },
+    )
+
+    assert application.status_code == 201
+
+    response = client.get(
+        (
+            "/api/v1/rpa/accounts"
+            "?application="
+            "No%20aggregation%20workflow"
+        ),
+        headers=integration_headers,
+    )
+
+    assert response.status_code == 409
