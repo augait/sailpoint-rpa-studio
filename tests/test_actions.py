@@ -153,3 +153,136 @@ async def test_select_missing_option_fails_fast(
         )
 
     assert target.selected is None
+
+
+class DynamicTarget:
+    async def click(
+        self,
+        timeout,
+    ):
+        self.timeout = timeout
+
+
+class DynamicPage:
+    pass
+
+
+async def test_selector_value_resolves_variable(
+    monkeypatch,
+):
+    captured = {}
+
+    async def choose(
+        page,
+        selectors,
+        timeout_ms,
+        emit,
+        step_id,
+    ):
+        captured[
+            "value"
+        ] = selectors[0].value
+
+        return DynamicTarget()
+
+    monkeypatch.setattr(
+        basic,
+        "choose",
+        choose,
+    )
+
+    step = Step.model_validate({
+        "id":
+            "edit-user",
+        "type":
+            "click",
+        "selectors": [
+            {
+                "kind":
+                    "xpath",
+                "value":
+                    (
+                        "//tr[td[1][normalize-space()="
+                        "'{{username}}']]//button"
+                    ),
+            }
+        ],
+    })
+
+    await basic.perform(
+        DynamicPage(),
+        step,
+        {
+            "username":
+                "joao.silva",
+        },
+        lambda *args, **kwargs:
+            None,
+        lambda *args, **kwargs:
+            None,
+    )
+
+    assert captured["value"] == (
+        "//tr[td[1][normalize-space()="
+        "'joao.silva']]//button"
+    )
+
+
+async def test_selector_role_name_resolves_variable(
+    monkeypatch,
+):
+    captured = {}
+
+    async def choose(
+        page,
+        selectors,
+        timeout_ms,
+        emit,
+        step_id,
+    ):
+        captured[
+            "name"
+        ] = selectors[0].name
+
+        return DynamicTarget()
+
+    monkeypatch.setattr(
+        basic,
+        "choose",
+        choose,
+    )
+
+    step = Step.model_validate({
+        "id":
+            "edit-user-role",
+        "type":
+            "click",
+        "selectors": [
+            {
+                "kind":
+                    "role",
+                "value":
+                    "button",
+                "name":
+                    "Edit {{username}}",
+            }
+        ],
+    })
+
+    await basic.perform(
+        DynamicPage(),
+        step,
+        {
+            "username":
+                "joao.silva",
+        },
+        lambda *args, **kwargs:
+            None,
+        lambda *args, **kwargs:
+            None,
+    )
+
+    assert (
+        captured["name"]
+        == "Edit joao.silva"
+    )

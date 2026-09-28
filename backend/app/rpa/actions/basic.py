@@ -21,8 +21,38 @@ async def perform(page, step, variables, emit, capture):
     if step.type == "screenshot":
         await capture(step.id)
         return
-    target = await choose(page, step.selectors, step.timeout_ms, emit, step.id)
-    value = resolve(step.value, variables)
+    resolved_selectors = [
+        selector.model_copy(
+            update={
+                "value": resolve(
+                    selector.value,
+                    variables,
+                ),
+                "name": (
+                    resolve(
+                        selector.name,
+                        variables,
+                    )
+                    if selector.name
+                    else None
+                ),
+            }
+        )
+        for selector in step.selectors
+    ]
+
+    target = await choose(
+        page,
+        resolved_selectors,
+        step.timeout_ms,
+        emit,
+        step.id,
+    )
+
+    value = resolve(
+        step.value,
+        variables,
+    )
     match step.type:
         case "click":
             await target.click(timeout=step.timeout_ms)
