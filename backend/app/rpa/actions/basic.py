@@ -32,7 +32,22 @@ async def perform(page, step, variables, emit, capture):
                 raise ValueError("Password requer referência de variável")
             await target.fill(value, timeout=step.timeout_ms)
         case "select":
-            await target.select_option(value, timeout=step.timeout_ms)
+            option_values = await (
+                target.locator("option")
+                .evaluate_all(
+                    "options => options.map(option => option.value)"
+                )
+            )
+
+            if value not in option_values:
+                raise ValueError(
+                    "SELECT_OPTION_NOT_FOUND"
+                )
+
+            await target.select_option(
+                value,
+                timeout=step.timeout_ms,
+            )
         case "extract_text":
             variables[step.output] = (await target.inner_text(timeout=step.timeout_ms))[:10000]
             return {step.output: variables[step.output]}
